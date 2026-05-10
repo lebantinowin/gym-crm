@@ -1,7 +1,6 @@
 <?php
 // workouts.php - Complete Fixed Version with Emoji Support
 require_once 'auth.php';
-require_once 'config.php';
 
 require_login();
 

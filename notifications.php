@@ -1,7 +1,6 @@
 <?php
 // notifications.php — Notification API
 require_once 'auth.php';
-require_once 'config.php';
 
 if (!is_logged_in()) {
     http_response_code(403);

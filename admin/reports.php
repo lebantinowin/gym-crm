@@ -1,7 +1,6 @@
 <?php
 // admin/reports.php - Comprehensive Reports Dashboard (Fixed for missing tables & graph animations)
 require_once '../auth.php';
-require_once '../config.php';
 
 require_admin();
 
@@ -176,29 +175,9 @@ try {
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <!-- Navigation -->
-    <nav class="bg-primary text-white shadow-lg">
-        <div class="container mx-auto px-4 py-3">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <i class="fas fa-dumbbell text-highlight text-2xl"></i>
-                    <h1 class="text-xl font-bold">Warzone Gym CRM</h1>
-                </div>
-                <div class="hidden md:flex items-center space-x-6">
-                    <a href="index.php" class="hover:text-highlight transition">Dashboard</a>
-                    <a href="users.php" class="hover:text-highlight transition">Users</a>
-                    <a href="reports.php" class="hover:text-highlight transition font-semibold">Reports</a>
-                    <a href="messages.php" class="hover:text-highlight transition">Messages</a>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="../logout.php" class="text-gray-400 hover:text-highlight transition" title="Logout">
-                        <i class="fas fa-sign-out-alt text-lg"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+<body class="bg-gray-50 md:flex min-h-screen">
+    <?php include 'sidebar.php'; ?>
+    <div class="flex-1 md:ml-64 w-full flex flex-col">
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
@@ -591,5 +570,6 @@ try {
             </div>
         </div>
     </footer>
+    </div>
 </body>
 </html>

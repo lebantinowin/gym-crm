@@ -1,7 +1,6 @@
 <?php
 // dashboard.php - Enhanced Main Dashboard with Notifications, AI Popups & Journal
 require_once 'auth.php';
-require_once 'config.php';
 
 require_login();
 

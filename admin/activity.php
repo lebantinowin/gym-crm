@@ -1,14 +1,17 @@
 <?php
 // admin/activity.php
 require_once '../auth.php';
-require_once '../config.php';
 
 require_admin();
 
-/* ---------- how many rows to show (default 5) ---------- */
-$limit = isset($_GET['show']) && (int)$_GET['show'] > 0
-         ? (int)$_GET['show']
-         : 5;
+/* ---------- Pagination ---------- */
+$limit = isset($_GET['show']) && (int)$_GET['show'] > 0 ? (int)$_GET['show'] : 10;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$offset = ($page - 1) * $limit;
+
+$stmt_count = $pdo->query("SELECT COUNT(*) FROM user_activity");
+$total_activity = $stmt_count->fetchColumn();
+$total_pages = ceil($total_activity / $limit);
 
 /* ---------- pull the rows ---------- */
 $stmt = $pdo->prepare(
@@ -16,9 +19,10 @@ $stmt = $pdo->prepare(
        FROM user_activity ua
        JOIN users u ON u.id = ua.user_id
       ORDER BY ua.created_at DESC
-      LIMIT :lim"
+      LIMIT :lim OFFSET :off"
 );
 $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+$stmt->bindValue(':off', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $activity = $stmt->fetchAll();
 ?>
@@ -53,30 +57,9 @@ $activity = $stmt->fetchAll();
         .scroll-thin::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
     </style>
 </head>
-<body class="bg-gray-50">
-<!-- ---------- nav ---------- -->
-<nav class="bg-primary text-white shadow-lg">
-    <div class="container mx-auto px-4 py-3">
-        <div class="flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <i class="fas fa-dumbbell text-highlight text-2xl"></i>
-                <h1 class="text-xl font-bold">Warzone Admin</h1>
-            </div>
-            <div class="hidden md:flex items-center space-x-6">
-                <a href="index.php" class="hover:text-highlight transition">Dashboard</a>
-                <a href="users.php" class="hover:text-highlight transition">Users</a>
-                <a href="reports.php" class="hover:text-highlight transition">Reports</a>
-                <a href="messages.php" class="hover:text-highlight transition">Messages</a>
-                <a href="activity.php" class="hover:text-highlight transition font-semibold">Activity</a>
-            </div>
-            <div class="flex items-center space-x-4">
-                <a href="../logout.php" class="text-gray-400 hover:text-highlight transition" title="Logout">
-                    <i class="fas fa-sign-out-alt text-lg"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-</nav>
+<body class="bg-gray-50 md:flex min-h-screen">
+    <?php include 'sidebar.php'; ?>
+    <div class="flex-1 md:ml-64 w-full flex flex-col">
 
 <!-- ---------- content ---------- -->
 <main class="container mx-auto px-4 py-8 max-w-5xl">
@@ -143,6 +126,31 @@ $activity = $stmt->fetchAll();
                     </div>
                 <?php endforeach; ?>
                 </div>
+                
+                <!-- Pagination controls -->
+                <?php if ($total_pages > 1): ?>
+                <div class="pt-4 mt-4 border-t border-gray-100 flex items-center justify-between flex-wrap gap-4">
+                    <span class="text-sm text-gray-700">
+                        Showing <?= $offset + 1 ?> to <?= min($offset + $limit, $total_activity) ?> of <?= $total_activity ?> actions
+                    </span>
+                    <div class="flex items-center space-x-1">
+                        <?php if ($page > 1): ?>
+                        <a href="?show=<?= $limit ?>&page=<?= $page - 1 ?>" class="px-3 py-1 border rounded hover:bg-gray-50 text-sm">Prev</a>
+                        <?php endif; ?>
+                        
+                        <?php
+                        $start_page = max(1, $page - 2);
+                        $end_page = min($total_pages, $page + 2);
+                        for ($i = $start_page; $i <= $end_page; $i++): ?>
+                        <a href="?show=<?= $limit ?>&page=<?= $i ?>" class="px-3 py-1 border rounded text-sm <?= $i === $page ? 'bg-highlight text-white border-highlight' : 'hover:bg-gray-50' ?>"><?= $i ?></a>
+                        <?php endfor; ?>
+                        
+                        <?php if ($page < $total_pages): ?>
+                        <a href="?show=<?= $limit ?>&page=<?= $page + 1 ?>" class="px-3 py-1 border rounded hover:bg-gray-50 text-sm">Next</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -154,5 +162,6 @@ document.getElementById('limitSel').addEventListener('change', e => {
     window.location = '?show=' + e.target.value;
 });
 </script>
+</div>
 </body>
 </html>

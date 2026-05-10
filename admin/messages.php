@@ -1,11 +1,25 @@
 <?php
 // admin/messages.php - Messaging System
 require_once '../auth.php';
-require_once '../config.php';
 
 require_admin();
 
 $user_id = $_SESSION['user_id'];
+
+// Pagination setup for conversations
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$limit = 10;
+$offset = ($page - 1) * $limit;
+
+$stmt_count = $pdo->prepare("
+    SELECT COUNT(DISTINCT u.id)
+    FROM messages m
+    JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
+    WHERE (m.sender_id = ? OR m.receiver_id = ?) AND u.id != ?
+");
+$stmt_count->execute([$user_id, $user_id, $user_id]);
+$total_conversations = $stmt_count->fetchColumn();
+$total_pages = ceil($total_conversations / $limit);
 
 // Get conversations
 $stmt = $pdo->prepare("
@@ -18,8 +32,15 @@ $stmt = $pdo->prepare("
     WHERE (m.sender_id = ? OR m.receiver_id = ?) AND u.id != ?
     GROUP BY u.id, u.name, u.profile_picture
     ORDER BY last_message_date DESC
+    LIMIT ? OFFSET ?
 ");
-$stmt->execute([$user_id, $user_id, $user_id, $user_id]);
+$stmt->bindValue(1, $user_id, PDO::PARAM_INT);
+$stmt->bindValue(2, $user_id, PDO::PARAM_INT);
+$stmt->bindValue(3, $user_id, PDO::PARAM_INT);
+$stmt->bindValue(4, $user_id, PDO::PARAM_INT);
+$stmt->bindValue(5, $limit, PDO::PARAM_INT);
+$stmt->bindValue(6, $offset, PDO::PARAM_INT);
+$stmt->execute();
 $conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get messages for a specific conversation
@@ -146,29 +167,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     }
 </style>
 </head>
-<body class="bg-gray-50">
-    <!-- Navigation -->
-    <nav class="bg-primary text-white shadow-lg">
-        <div class="container mx-auto px-4 py-3">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <i class="fas fa-dumbbell text-highlight text-2xl"></i>
-                    <h1 class="text-xl font-bold">Warzone Gym CRM</h1>
-                </div>
-                <div class="hidden md:flex items-center space-x-6">
-                    <a href="index.php" class="hover:text-highlight transition">Dashboard</a>
-                    <a href="users.php" class="hover:text-highlight transition">Users</a>
-                    <a href="reports.php" class="hover:text-highlight transition">Reports</a>
-                    <a href="messages.php" class="hover:text-highlight transition font-semibold">Messages</a>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <a href="../logout.php" class="text-gray-400 hover:text-highlight transition" title="Logout">
-                        <i class="fas fa-sign-out-alt text-lg"></i>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
+<body class="bg-gray-50 md:flex min-h-screen">
+    <?php include 'sidebar.php'; ?>
+    <div class="flex-1 md:ml-64 w-full flex flex-col">
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
@@ -206,6 +207,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                     </a>
                     <?php endforeach; ?>
                 </div>
+                
+                <?php if ($total_pages > 1): ?>
+                <div class="p-3 border-t flex justify-center space-x-2 text-sm">
+                    <?php if ($page > 1): ?>
+                    <a href="?page=<?= $page - 1 ?>" class="px-2 py-1 border rounded hover:bg-gray-50">Prev</a>
+                    <?php endif; ?>
+                    <span class="px-2 py-1"><?= $page ?> / <?= $total_pages ?></span>
+                    <?php if ($page < $total_pages): ?>
+                    <a href="?page=<?= $page + 1 ?>" class="px-2 py-1 border rounded hover:bg-gray-50">Next</a>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             </div>
 
             <!-- Message Thread -->
@@ -271,5 +284,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
             </div>
         </div>
     </footer>
+    </div>
 </body>
 </html>

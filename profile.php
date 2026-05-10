@@ -1,7 +1,6 @@
 <?php
 // profile.php - Enhanced User Profile with Messaging and Feedback (FIXED)
 require_once 'auth.php';
-require_once 'config.php';
 
 require_login();
 

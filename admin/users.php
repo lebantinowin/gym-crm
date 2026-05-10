@@ -1,7 +1,6 @@
 <?php
 // admin/users.php - User Management
 require_once '../auth.php';
-require_once '../config.php';
 
 require_admin();
 
@@ -33,8 +32,19 @@ if (isset($_GET['toggle_role'])) {
     }
 }
 
-// Get all users
-$stmt = $pdo->prepare("SELECT * FROM users ORDER BY created_at DESC");
+// Pagination setup
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$limit = 10;
+$offset = ($page - 1) * $limit;
+
+$stmt_count = $pdo->query("SELECT COUNT(*) FROM users");
+$total_users = $stmt_count->fetchColumn();
+$total_pages = ceil($total_users / $limit);
+
+// Get paginated users
+$stmt = $pdo->prepare("SELECT * FROM users ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -76,40 +86,9 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <!-- Navigation Bar -->
-    <nav class="bg-primary text-white shadow-lg">
-        <div class="container mx-auto px-4 py-3">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <i class="fas fa-dumbbell text-highlight text-2xl"></i>
-                    <h1 class="text-xl font-bold">Warzone Admin</h1>
-                </div>
-                <div class="hidden md:flex items-center space-x-6">
-                    <a href="index.php" class="hover:text-highlight transition font-semibold">Dashboard</a>
-                    <a href="users.php" class="hover:text-highlight transition">Users</a>
-                    <a href="reports.php" class="hover:text-highlight transition">Reports</a>
-                    <a href="messages.php" class="hover:text-highlight transition">Messages</a>
-                    <!-- <a href="../dashboard.php" class="hover:text-highlight transition">Member View</a> -->
-                </div>
-                <div class="flex items-center space-x-4">
-                    <!-- <div class="relative">
-                        <i class="fas fa-bell text-xl cursor-pointer"></i>
-                        <span class="absolute top-0 right-0 bg-highlight text-xs rounded-full h-5 w-5 flex items-center justify-center">3</span>
-                    </div> -->
-                    <div class="flex items-center space-x-2 cursor-pointer">
-                        <img src="<?php echo file_exists('uploads/' . $_SESSION['user_profile_picture']) ? 'uploads/' . $_SESSION['user_profile_picture'] : 'uploads/default.png'; ?>" alt="Profile" class="rounded-full w-10 h-10">
-                        <!-- <span class="hidden md:inline"><?php echo htmlspecialchars($_SESSION['user_name']); ?></span> -->
-                        <a href="../logout.php" 
-                        class="text-gray-400 hover:text-highlight transition ml-1 opacity-75 group-hover:opacity-100" 
-                        title="Logout">
-                            <i class="fas fa-sign-out-alt text-sm"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </nav>
+<body class="bg-gray-50 md:flex min-h-screen">
+    <?php include 'sidebar.php'; ?>
+    <div class="flex-1 md:ml-64 w-full flex flex-col">
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
@@ -193,6 +172,31 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+                
+                <!-- Pagination controls -->
+                <?php if ($total_pages > 1): ?>
+                <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-wrap gap-4">
+                    <span class="text-sm text-gray-700">
+                        Showing <?= $offset + 1 ?> to <?= min($offset + $limit, $total_users) ?> of <?= $total_users ?> users
+                    </span>
+                    <div class="flex items-center space-x-1">
+                        <?php if ($page > 1): ?>
+                        <a href="?page=<?= $page - 1 ?>" class="px-3 py-1 border rounded hover:bg-gray-50 text-sm">Prev</a>
+                        <?php endif; ?>
+                        
+                        <?php
+                        $start_page = max(1, $page - 2);
+                        $end_page = min($total_pages, $page + 2);
+                        for ($i = $start_page; $i <= $end_page; $i++): ?>
+                        <a href="?page=<?= $i ?>" class="px-3 py-1 border rounded text-sm <?= $i === $page ? 'bg-highlight text-white border-highlight' : 'hover:bg-gray-50' ?>"><?= $i ?></a>
+                        <?php endfor; ?>
+                        
+                        <?php if ($page < $total_pages): ?>
+                        <a href="?page=<?= $page + 1 ?>" class="px-3 py-1 border rounded hover:bg-gray-50 text-sm">Next</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </main>
@@ -204,6 +208,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
     </footer>
+    </div>
     <!-- <?php include 'modal_logout.php'; ?> -->
 </body>
 </html>

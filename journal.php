@@ -1,7 +1,6 @@
 <?php
 // journal.php - Journey Journal (Fixed Mood Selection & Archive)
 require_once 'auth.php';
-require_once 'config.php';
 
 require_login();
 
