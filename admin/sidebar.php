@@ -43,14 +43,52 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
 </aside>
 
-<!-- Mobile Header -->
-<div class="md:hidden bg-primary text-white p-4 flex justify-between items-center shadow-lg sticky top-0 z-20">
-    <div class="flex items-center space-x-3">
-        <i class="fas fa-dumbbell text-highlight text-xl"></i>
-        <h1 class="text-lg font-bold">Warzone Admin</h1>
+<!-- Mobile Header + Drawer -->
+<div class="md:hidden sticky top-0 z-30">
+    <div class="bg-primary text-white p-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center space-x-3">
+            <i class="fas fa-dumbbell text-highlight text-xl"></i>
+            <h1 class="text-lg font-bold">Warzone Admin</h1>
+        </div>
+        <button id="mobileMenuToggle" class="text-white focus:outline-none p-1" aria-label="Open navigation">
+            <i class="fas fa-bars text-xl" id="menuIcon"></i>
+        </button>
     </div>
-    <div class="flex items-center space-x-4">
-        <a href="index.php" class="text-gray-400 hover:text-white"><i class="fas fa-home"></i></a>
-        <a href="../logout.php" class="text-gray-400 hover:text-highlight"><i class="fas fa-sign-out-alt"></i></a>
+    <!-- Slide-down drawer -->
+    <div id="mobileDrawer" class="hidden bg-primary text-white border-t border-gray-800 shadow-lg">
+        <nav class="px-4 py-3 space-y-1">
+            <a href="index.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'index.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-home w-6"></i> Dashboard
+            </a>
+            <a href="users.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'users.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-users w-6"></i> Users
+            </a>
+            <a href="reports.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'reports.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-chart-pie w-6"></i> Reports
+            </a>
+            <a href="messages.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'messages.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-envelope w-6"></i> Messages
+            </a>
+            <a href="activity.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'activity.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-history w-6"></i> Activity Log
+            </a>
+            <a href="../logout.php" class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:text-highlight hover:bg-secondary">
+                <i class="fas fa-sign-out-alt w-6"></i> Logout
+            </a>
+        </nav>
     </div>
 </div>
+<script>
+    (function() {
+        const toggle = document.getElementById('mobileMenuToggle');
+        const drawer = document.getElementById('mobileDrawer');
+        const icon   = document.getElementById('menuIcon');
+        if (toggle && drawer) {
+            toggle.addEventListener('click', function() {
+                const isOpen = !drawer.classList.contains('hidden');
+                drawer.classList.toggle('hidden', isOpen);
+                icon.className = isOpen ? 'fas fa-bars text-xl' : 'fas fa-times text-xl';
+            });
+        }
+    })();
+</script>

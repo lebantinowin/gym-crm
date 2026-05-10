@@ -181,23 +181,23 @@ try {
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-8">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800">Reports & Analytics</h1>
                 <p class="text-gray-600">Comprehensive insights into your gym operations</p>
             </div>
-            <div class="flex items-center space-x-4">
-                <form method="GET" class="flex items-center space-x-2">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto">
+                <form method="GET" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                     <input type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>" 
-                           class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-highlight">
-                    <span class="text-gray-500">to</span>
+                           class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-highlight w-full sm:w-auto">
+                    <span class="text-gray-500 hidden sm:block text-center">to</span>
                     <input type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" 
-                           class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-highlight">
-                    <button type="submit" class="bg-highlight text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition">
+                           class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-highlight w-full sm:w-auto">
+                    <button type="submit" class="bg-highlight text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition whitespace-nowrap">
                         <i class="fas fa-filter mr-2"></i>Filter
                     </button>
                 </form>
-                <button onclick="window.print()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition">
+                <button onclick="window.print()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition whitespace-nowrap">
                     <i class="fas fa-print mr-2"></i>Print
                 </button>
             </div>

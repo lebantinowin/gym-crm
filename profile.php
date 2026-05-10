@@ -301,9 +301,9 @@ if (!empty($user_messages)) {
                     <a href="chat.php" class="hover:text-highlight transition">Chat</a>
                     <a href="profile.php" class="hover:text-highlight transition">Profile</a>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <!-- ✅ Profile Picture (CLICKABLE → profile.php) -->
-                    <a href="profile.php" class="flex items-center space-x-2 group" title="View Profile">
+                <div class="flex items-center space-x-3">
+                    <!-- ✅ Profile Picture (desktop only) -->
+                    <a href="profile.php" class="hidden md:flex items-center space-x-2 group" title="View Profile">
                         <img src="<?= htmlspecialchars(file_exists('uploads/' . ($_SESSION['user_profile_picture'] ?? 'default.png')) 
                                     ? 'uploads/' . $_SESSION['user_profile_picture'] 
                                     : 'uploads/default.png') ?>" 
@@ -315,17 +315,61 @@ if (!empty($user_messages)) {
                             <i class="fas fa-sign-out-alt text-sm"></i>
                         </a>
                     </a>
+                    <!-- Mobile: hamburger -->
+                    <button id="userNavToggle" class="md:hidden text-white focus:outline-none p-1" aria-label="Open menu">
+                        <i class="fas fa-bars text-xl" id="userNavIcon"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </nav>
+    <!-- Mobile nav drawer -->
+    <div id="userNavDrawer" class="md:hidden hidden bg-primary text-white border-t border-gray-800 shadow-lg sticky top-0 z-40">
+        <div class="px-4 py-3 space-y-1">
+            <a href="dashboard.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-home w-6"></i> Dashboard
+            </a>
+            <a href="workouts.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-dumbbell w-6"></i> Workouts
+            </a>
+            <a href="attendance.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-calendar-check w-6"></i> Attendance
+            </a>
+            <a href="journal.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-book w-6"></i> Journal
+            </a>
+            <a href="chat.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-robot w-6"></i> AI Coach
+            </a>
+            <a href="profile.php" class="flex items-center px-4 py-3 rounded-lg bg-highlight text-white">
+                <i class="fas fa-user w-6"></i> Profile
+            </a>
+            <a href="logout.php" class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:text-highlight hover:bg-secondary">
+                <i class="fas fa-sign-out-alt w-6"></i> Logout
+            </a>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const toggle = document.getElementById('userNavToggle');
+        const drawer = document.getElementById('userNavDrawer');
+        const icon   = document.getElementById('userNavIcon');
+        if (toggle && drawer) {
+            toggle.addEventListener('click', function() {
+                const isOpen = !drawer.classList.contains('hidden');
+                drawer.classList.toggle('hidden', isOpen);
+                icon.className = isOpen ? 'fas fa-bars text-xl' : 'fas fa-times text-xl';
+            });
+        }
+    })();
+    </script>
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
         <div class="max-w-4xl mx-auto">
-            <div class="flex justify-between items-center mb-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <h2 class="text-3xl font-bold text-gray-800">Your Profile</h2>
-                <button onclick="document.getElementById('editProfile').classList.remove('hidden')" class="btn-primary px-4 py-2 rounded-lg text-sm flex items-center">
+                <button onclick="document.getElementById('editProfile').classList.remove('hidden')" class="btn-primary px-4 py-2 rounded-lg text-sm flex items-center whitespace-nowrap">
                     <i class="fas fa-edit mr-2"></i> Edit Profile
                 </button>
             </div>

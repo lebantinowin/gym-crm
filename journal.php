@@ -29,6 +29,20 @@ $stmt = $pdo->prepare("SELECT COUNT(*) FROM mood_checkins WHERE user_id = ? AND 
 $stmt->execute([$user_id]);
 $archived_count = (int)$stmt->fetchColumn();
 
+// Pagination logic
+$items_per_page = 10;
+$current_page = max(1, (int)($_GET['page'] ?? 1));
+$offset = ($current_page - 1) * $items_per_page;
+
+// Get total count for current filter
+$count_query = str_replace("SELECT *", "SELECT COUNT(*)", $query);
+$stmt = $pdo->prepare($count_query);
+$stmt->execute($params);
+$total_items = (int)$stmt->fetchColumn();
+$total_pages = ceil($total_items / $items_per_page);
+
+$query .= " LIMIT " . (int)$items_per_page . " OFFSET " . (int)$offset;
+
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -198,8 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
                     <a href="chat.php" class="hover:text-highlight transition">Chat</a>
                     <a href="profile.php" class="hover:text-highlight transition">Profile</a>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="profile.php" class="flex items-center space-x-2 group" title="Profile">
+                <div class="flex items-center space-x-3">
+                    <a href="profile.php" class="hidden md:flex items-center space-x-2 group" title="Profile">
                         <img src="<?= htmlspecialchars(file_exists('uploads/' . ($_SESSION['user_profile_picture'] ?? 'default.png')) ? 'uploads/' . $_SESSION['user_profile_picture'] : 'uploads/default.png') ?>" 
                              alt="Profile" 
                              class="rounded-full w-10 h-10 transition-transform duration-200 group-hover:scale-105 group-hover:ring-2 group-hover:ring-highlight">
@@ -209,19 +223,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
                             <i class="fas fa-sign-out-alt text-lg"></i>
                         </a>
                     </a>
+                    <button id="userNavToggle" class="md:hidden text-white focus:outline-none p-1" aria-label="Open menu">
+                        <i class="fas fa-bars text-xl" id="userNavIcon"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </nav>
+    <!-- Mobile nav drawer -->
+    <div id="userNavDrawer" class="md:hidden hidden bg-primary text-white border-t border-gray-800 shadow-lg sticky top-0 z-40">
+        <div class="px-4 py-3 space-y-1">
+            <a href="dashboard.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-home w-6"></i> Dashboard
+            </a>
+            <a href="workouts.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-dumbbell w-6"></i> Workouts
+            </a>
+            <a href="attendance.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-calendar-check w-6"></i> Attendance
+            </a>
+            <a href="journal.php" class="flex items-center px-4 py-3 rounded-lg bg-highlight text-white">
+                <i class="fas fa-book w-6"></i> Journal
+            </a>
+            <a href="chat.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-robot w-6"></i> AI Coach
+            </a>
+            <a href="profile.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
+                <i class="fas fa-user w-6"></i> Profile
+            </a>
+            <a href="logout.php" class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:text-highlight hover:bg-secondary">
+                <i class="fas fa-sign-out-alt w-6"></i> Logout
+            </a>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const toggle = document.getElementById('userNavToggle');
+        const drawer = document.getElementById('userNavDrawer');
+        const icon   = document.getElementById('userNavIcon');
+        if (toggle && drawer) {
+            toggle.addEventListener('click', function() {
+                const isOpen = !drawer.classList.contains('hidden');
+                drawer.classList.toggle('hidden', isOpen);
+                icon.className = isOpen ? 'fas fa-bars text-xl' : 'fas fa-times text-xl';
+            });
+        }
+    })();
+    </script>
 
     <!-- Main Content -->
     <main class="flex-grow container mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-8">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800">Journey Journal</h1>
                 <p class="text-gray-600">Your fitness & mood history — one entry at a time</p>
             </div>
-            <button id="addEntryBtn" class="btn-primary px-4 py-2 rounded-lg flex items-center">
+            <button id="addEntryBtn" class="btn-primary px-4 py-2 rounded-lg flex items-center whitespace-nowrap">
                 <i class="fas fa-plus mr-2"></i> New Entry
             </button>
         </div>
@@ -307,6 +364,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
                 </div>
                 <?php endforeach; ?>
             </div>
+            
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+            <div class="mt-8 flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl shadow gap-4">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium"><?= $offset + 1 ?></span> to <span class="font-medium"><?= min($offset + $items_per_page, $total_items) ?></span> of <span class="font-medium"><?= $total_items ?></span> results
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <?php if ($current_page > 1): ?>
+                        <a href="?filter=<?= $filter ?>&page=<?= $current_page - 1 ?>" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        <?php endif; ?>
+                        
+                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                            <?php if ($i == $current_page): ?>
+                                <span class="relative inline-flex items-center px-4 py-2 border border-highlight bg-highlight text-white"><?= $i ?></span>
+                            <?php elseif ($i >= $current_page - 2 && $i <= $current_page + 2): ?>
+                                <a href="?filter=<?= $filter ?>&page=<?= $i ?>" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><?= $i ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        
+                        <?php if ($current_page < $total_pages): ?>
+                        <a href="?filter=<?= $filter ?>&page=<?= $current_page + 1 ?>" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                        <?php endif; ?>
+                    </nav>
+                </div>
+            </div>
+            <?php endif; ?>
         <?php endif; ?>
     </main>
 

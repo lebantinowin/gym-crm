@@ -63,7 +63,7 @@ $activity = $stmt->fetchAll();
 
 <!-- ---------- content ---------- -->
 <main class="container mx-auto px-4 py-8 max-w-5xl">
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h2 class="text-3xl font-bold text-gray-800">Activity Log</h2>
             <p class="text-gray-600">Recent member actions</p>

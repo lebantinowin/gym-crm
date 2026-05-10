@@ -87,7 +87,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     <title>Warzone Gym CRM - Messages</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1a1a2e',
+                        secondary: '#16213e',
+                        accent: '#0f3460',
+                        highlight: '#e94560'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+    
     /* ---------- core palette from chat.php ---------- */
     :root{
         --primary:#1a1a2e;
@@ -101,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
 
     /* ---------- layout helpers ---------- */
     .h-screen-content{ height:calc(100vh - 120px); }   /* nav + footer offset */
-    .bubble{
+    .message-bubble{
         max-width:65%;
         word-wrap:break-word;
         padding:.8rem 1.1rem;
@@ -109,12 +125,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
         border-radius:1.1rem;
         box-shadow:0 2px 4px rgba(0,0,0,.06);
     }
-    .bubble-sent{
+    .message-sent{
         background:linear-gradient(45deg,var(--highlight),var(--accent));
         color:#fff;
         border-bottom-right-radius:.4rem;
     }
-    .bubble-received{
+    .message-received{
         background:#f1f5f9;
         color:#1f2937;
         border-bottom-left-radius:.4rem;
@@ -135,36 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
 
     /* ---------- input area ---------- */
     textarea:focus{ outline:none; box-shadow:0 0 0 2px var(--highlight); }
-    nav{
-        background:var(--primary,#1a1a2e);
-        box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06);
-    }
-    nav a{
-        color:#fff;
-        transition:color .2s;
-        font-family:'Poppins',sans-serif;
-    }
-    nav a:hover{
-        color:var(--highlight,#e94560);
-    }
-    /* make the brand text behave like the chat.php link */
-    nav .brand-link{
-        font-size:1.25rem;
-        font-weight:700;
-    }
-    /* logout icon same muted colour + hover as chat.php */
-    nav .logout-icon{
-        color:#9ca3af;
-        transition:color .2s;
-    }
-    nav .logout-icon:hover{
-        color:var(--highlight,#e94560);
-    }
-    /* thin red ring on profile pic hover (same as chat.php) */
-    nav .profile-group:hover img{
-        transform:scale(1.05);
-        ring:2px solid var(--highlight,#e94560);
-    }
 </style>
 </head>
 <body class="bg-gray-50 md:flex min-h-screen">
@@ -173,20 +159,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
 
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-8">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800">Messages</h1>
                 <p class="text-gray-600">Communicate with gym members</p>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[600px]">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:h-[600px]">
             <!-- Conversations List -->
             <div class="lg:col-span-1 bg-white rounded-xl shadow overflow-hidden">
                 <div class="p-4 border-b">
                     <h3 class="font-bold text-gray-800">Conversations</h3>
                 </div>
-                <div class="overflow-y-auto max-h-[550px]">
+                <div class="overflow-y-auto max-h-60 lg:max-h-[480px]">
                     <?php foreach ($conversations as $conversation): ?>
                     <a href="messages.php?conversation=<?= $conversation['id'] ?>" 
                        class="flex items-center p-4 hover:bg-gray-50 transition-colors border-b <?= $conversation['id'] == $conversation_id ? 'bg-blue-50' : '' ?>">
