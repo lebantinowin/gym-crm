@@ -52,6 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script>
         tailwind.config = { theme: { extend: { colors: { primary: '#1a1a2e', highlight: '#e94560' } } } }
     </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Outfit', sans-serif; background-color: #f8f9fa; }
+    </style>
 </head>
 <body class="bg-gray-50 md:flex min-h-screen">
     <?php include 'sidebar.php'; ?>

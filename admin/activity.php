@@ -50,8 +50,8 @@ $activity = $stmt->fetchAll();
         };
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-        body{ font-family:'Poppins',sans-serif; background:#f8f9fa; }
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        body{ font-family:'Outfit',sans-serif; background:#f8f9fa; }
         /* thin scrollbar */
         .scroll-thin::-webkit-scrollbar{width:6px}
         .scroll-thin::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}

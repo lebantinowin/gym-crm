@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
         }
     </script>
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
     
     /* ---------- core palette from chat.php ---------- */
     :root{
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     }
 
     /* ---------- global ---------- */
-    body{ background:#f8f9fa; font-family:'Poppins',sans-serif; }
+    body{ background:#f8f9fa; font-family:'Outfit',sans-serif; }
 
     /* ---------- layout helpers ---------- */
     .h-screen-content{ height:calc(100vh - 120px); }   /* nav + footer offset */

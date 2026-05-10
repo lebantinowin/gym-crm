@@ -2,8 +2,8 @@
 // auth.php — Enhanced & Fixed (all helpers defined early)
 session_start();
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/upload_helper.php';
 
-define('UPLOAD_DIR', 'uploads/');
 define('SESSION_TIMEOUT', 1800); // 30 minutes idle timeout
 
 // ── Session timeout check ──────────────────────────────────────────────────
@@ -12,9 +12,7 @@ if (isset($_SESSION['user_id'])) {
     if ((time() - $last_active) > SESSION_TIMEOUT) {
         session_unset();
         session_destroy();
-        // Fixed: Ensure correct redirect path from subdirectories
-        $base = (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) ? '../' : '';
-        header('Location: ' . $base . 'login.php?timeout=1');
+        header('Location: login.php?timeout=1');
         exit();
     }
     $_SESSION['last_active'] = time();
@@ -37,12 +35,12 @@ function verify_csrf(string $token): bool {
 }
 
 // Create upload dir & default.png
-if (!file_exists(UPLOAD_DIR)) {
-    mkdir(UPLOAD_DIR, 0777, true);
-    if (!file_exists(UPLOAD_DIR . 'default.png')) {
-        // 1x1 transparent PNG (base64)
-        file_put_contents(UPLOAD_DIR . 'default.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
-    }
+if (!file_exists(UPLOAD_DIR_PATH)) {
+    mkdir(UPLOAD_DIR_PATH, 0777, true);
+}
+if (!file_exists(UPLOAD_DIR_PATH . 'default.png')) {
+    // 1x1 transparent PNG (base64)
+    file_put_contents(UPLOAD_DIR_PATH . 'default.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
 }
 // ✅ Password Complexity Check
 function validate_password($password) {
@@ -54,7 +52,7 @@ function validate_password($password) {
     return true;
 }
 
-// ✅ 1. ALL HELPER FUNCTIONS — defined FIRST (no early exit before these!)
+// ✅ 1. ALL HELPER FUNCTIONS — defined FIRST
 function login($email, $password) {
     global $pdo;
 
@@ -78,7 +76,7 @@ function login($email, $password) {
         $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
         $updateStmt->execute([$user['id']]);
         
-        // Set session — INCLUDING coach_style
+        // Set session
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8');
         $_SESSION['user_role'] = $user['role'] ?? 'user';
@@ -99,29 +97,6 @@ function login($email, $password) {
     // Artificial delay
     sleep(1);
     return false;
-}
-
-function upload_profile_picture($file) {
-    if (!$file || $file['error'] !== UPLOAD_ERR_OK) return 'default.png';
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    
-    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif'];
-    if (!in_array($mime, $allowed_mimes)) return 'default.png';
-    if ($file['size'] > 5 * 1024 * 1024) return 'default.png';
-    
-    $ext_map = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif'];
-    $ext = $ext_map[$mime] ?? 'png';
-    $filename = 'profile_' . bin2hex(random_bytes(8)) . '.' . $ext;
-    $filepath = UPLOAD_DIR . $filename;
-    
-    if (move_uploaded_file($file['tmp_name'], $filepath)) {
-        chmod($filepath, 0644);
-        return $filename;
-    }
-    return 'default.png';
 }
 
 function register($name, $email, $password, $goal, $profile_picture = null, $weight = null, $height = null) {

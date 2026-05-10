@@ -64,23 +64,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --primary: #1a1a2e;
+            --highlight: #e94560;
+        }
+
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Outfit', sans-serif;
             background-color: #f8f9fa;
         }
-        .gradient-border {
-            position: relative;
-            border-radius: 0.75rem;
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        .gradient-border::before {
-            content: '';
-            position: absolute;
-            top: -2px; left: -2px; right: -2px; bottom: -2px;
-            background: linear-gradient(45deg, #e94560, #0f3460, #16213e);
-            border-radius: 0.85rem;
-            z-index: -1;
-        }
+
         .btn-primary {
             background: linear-gradient(45deg, #e94560, #0f3460);
             color: white;

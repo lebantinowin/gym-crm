@@ -1,79 +1,69 @@
-<?php
-// includes/dashboard/stats_cards.php
-?>
-<!-- Stats Overview -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Attendance Card -->
-    <div class="dashboard-card bg-white p-6 rounded-xl shadow">
-        <div class="flex justify-between items-center">
-            <div>
-                <p class="text-gray-500 text-sm">Attendance Rate</p>
-                <p class="text-2xl font-bold"><?= $attendance_rate ?>%</p>
-                <p class="text-xs text-success">↑ 12% from last month</p>
-            </div>
-            <div class="bg-blue-100 p-3 rounded-full">
-                <i class="fas fa-calendar-check text-blue-500 text-xl"></i>
-            </div>
+<!-- includes/dashboard/stats_cards.php -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" id="statsContainer">
+    <!-- Skeleton Loaders -->
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 animate-pulse">
+        <div class="w-12 h-12 bg-gray-100 rounded-2xl"></div>
+        <div class="flex-1 space-y-2">
+            <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+            <div class="h-6 bg-gray-100 rounded w-1/4"></div>
         </div>
     </div>
-    
-    <!-- Workouts Card -->
-    <div class="dashboard-card bg-white p-6 rounded-xl shadow">
-        <div class="flex justify-between items-center">
-            <div>
-                <p class="text-gray-500 text-sm">Workouts This Week</p>
-                <p class="text-2xl font-bold"><?= count(array_filter($workouts, fn($w) => strtotime($w['date']) >= strtotime('monday this week'))) ?></p>
-                <p class="text-xs text-green-500">↑ <?= count($workouts) ?> total</p>
-            </div>
-            <div class="bg-purple-100 p-3 rounded-full">
-                <i class="fas fa-dumbbell text-purple-500 text-xl"></i>
-            </div>
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 animate-pulse">
+        <div class="w-12 h-12 bg-gray-100 rounded-2xl"></div>
+        <div class="flex-1 space-y-2">
+            <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+            <div class="h-6 bg-gray-100 rounded w-1/4"></div>
         </div>
     </div>
-    
-    <!-- Goal Progress Card -->
-    <?php if (!empty($user_data['fitness_goal'])): ?>
-        <div id="goalProgressCard" class="dashboard-card bg-white p-6 rounded-xl shadow cursor-pointer hover:ring-2 hover:ring-highlight">
-            <div class="flex justify-between items-center">
-                <div>
-                    <p class="text-gray-500 text-sm">Goal Progress</p>
-                    <p class="text-2xl font-bold"><?= $goal_progress ?>%</p>
-                    <p class="text-xs text-highlight">"<?= htmlspecialchars(substr($user_data['fitness_goal'], 0, 20)) . (strlen($user_data['fitness_goal']) > 20 ? '…' : '') ?>"</p>
-                </div>
-                <div class="bg-green-100 p-3 rounded-full">
-                    <i class="fas fa-chart-line text-green-500 text-xl"></i>
-                </div>
-            </div>
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 animate-pulse">
+        <div class="w-12 h-12 bg-gray-100 rounded-2xl"></div>
+        <div class="flex-1 space-y-2">
+            <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+            <div class="h-6 bg-gray-100 rounded w-1/4"></div>
         </div>
-        
-        <!-- Consistency Score Card -->
-        <div class="dashboard-card bg-white p-6 rounded-xl shadow">
-            <div class="flex justify-between items-center">
-                <div>
-                    <p class="text-gray-500 text-sm">Consistency Score</p>
-                    <p class="text-2xl font-bold"><?= $ai_confidence ?>%</p>
-                    <p class="text-xs <?= $ai_confidence > 85 ? 'text-success' : 'text-yellow-500' ?>">
-                        <?= $ai_confidence > 85 ? '✅ On track' : '⚠️ Needs attention' ?>
-                    </p>
-                </div>
-                <div class="bg-highlight p-3 rounded-full">
-                    <i class="fas fa-robot text-white text-xl"></i>
-                </div>
-            </div>
+    </div>
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 animate-pulse">
+        <div class="w-12 h-12 bg-gray-100 rounded-2xl"></div>
+        <div class="flex-1 space-y-2">
+            <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+            <div class="h-6 bg-gray-100 rounded w-1/4"></div>
         </div>
-    <?php else: ?>
-        <!-- Get Started CTA -->
-        <div class="dashboard-card bg-white p-6 rounded-xl shadow md:col-span-2 gradient-border">
-            <div class="flex justify-between items-center h-full">
-                <div>
-                    <p class="text-gray-500 text-sm">Set Your Fitness Goal</p>
-                    <p class="text-2xl font-bold">Get Started!</p>
-                    <p class="text-xs text-highlight mt-2">✨ 5-minute setup: goal, metrics, coach style</p>
-                </div>
-                <a href="profile.php#goal" class="btn-primary px-4 py-2 rounded-lg text-sm">
-                    <i class="fas fa-bullseye mr-2"></i> Set Goal
-                </a>
-            </div>
-        </div>
-    <?php endif; ?>
+    </div>
 </div>
+
+<script>
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('api/dashboard_stats.php');
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const data = result.data;
+            const container = document.getElementById('statsContainer');
+            
+            container.innerHTML = `
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-md transition group">
+                    <div class="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition"><i class="fas fa-dumbbell text-xl"></i></div>
+                    <div><p class="text-gray-500 text-sm font-medium">Total Workouts</p><h3 class="text-2xl font-bold">${data.total_workouts}</h3></div>
+                </div>
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-md transition group">
+                    <div class="p-4 bg-green-50 text-green-600 rounded-2xl group-hover:scale-110 transition"><i class="fas fa-fire text-xl"></i></div>
+                    <div><p class="text-gray-500 text-sm font-medium">Current Streak</p><h3 class="text-2xl font-bold">${data.streak} Days</h3></div>
+                </div>
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-md transition group">
+                    <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl group-hover:scale-110 transition"><i class="fas fa-weight text-xl"></i></div>
+                    <div><p class="text-gray-500 text-sm font-medium">Current Weight</p><h3 class="text-2xl font-bold">${data.current_weight} kg</h3></div>
+                </div>
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-md transition group">
+                    <div class="p-4 bg-orange-50 text-orange-600 rounded-2xl group-hover:scale-110 transition"><i class="fas fa-calendar-check text-xl"></i></div>
+                    <div><p class="text-gray-500 text-sm font-medium">Week Avg</p><h3 class="text-2xl font-bold">${data.weekly_attendance} Days</h3></div>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error('Failed to load stats:', err);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboardStats);
+</script>

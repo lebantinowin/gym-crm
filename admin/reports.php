@@ -156,8 +156,8 @@ try {
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Outfit', sans-serif; background-color: #f8f9fa; }
         .report-card {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }

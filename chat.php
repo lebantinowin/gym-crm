@@ -294,20 +294,27 @@ $messages = $stmt->fetchAll();
             }
         });
 
-        // Polling for new messages (every 3 seconds)
-        async function pollMessages() {
-            try {
-                const response = await fetch(`chat_api.php?action=poll&last_id=${lastMessageId}`);
-                const data = await response.json();
-                if (data.messages && data.messages.length > 0) {
-                    data.messages.forEach(msg => appendMessage(msg));
+        // SSE for real-time updates
+        let eventSource;
+        function initSSE() {
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource(`chat_sse.php?last_id=${lastMessageId}`);
+            
+            eventSource.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.id > lastMessageId) {
+                    appendMessage(msg);
                 }
-            } catch (err) {
-                console.error('Polling error:', err);
-            }
+            };
+
+            eventSource.onerror = () => {
+                console.warn('SSE connection lost. Reconnecting in 5s...');
+                eventSource.close();
+                setTimeout(initSSE, 5000);
+            };
         }
 
-        setInterval(pollMessages, 3000);
+        initSSE();
         document.addEventListener('DOMContentLoaded', scrollToBottom);
     </script>
     <?php include 'modal_logout.php'; ?>

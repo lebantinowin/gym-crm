@@ -20,17 +20,27 @@ if (file_exists($env_path)) {
     }
 }
 
-// 💾 Database (XAMPP defaults)
+// 💾 Database Settings
+define('DB_HOST', $_ENV['DB_HOST'] ?? 'localhost');
+define('DB_NAME', $_ENV['DB_NAME'] ?? 'gym_crm');
+define('DB_USER', $_ENV['DB_USER'] ?? 'root');
+define('DB_PASS', $_ENV['DB_PASS'] ?? '');
+
+// 📂 Path Constants
+define('ROOT_PATH', __DIR__ . DIRECTORY_SEPARATOR);
+define('UPLOAD_DIR_PATH', ROOT_PATH . 'uploads' . DIRECTORY_SEPARATOR);
+
 try {
     $pdo = new PDO(
-        'mysql:host=localhost;dbname=gym_crm;charset=utf8mb4',
-        'root',
-        '',
+        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+        DB_USER,
+        DB_PASS,
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false
         ]
     );
 } catch (PDOException $e) {
-    die('<h3>DB Connection Failed</h3><pre>' . htmlspecialchars($e->getMessage()) . '</pre>');
+    die('<h3>DB Connection Failed</h3><p>Please ensure your database is running and credentials in .env are correct.</p>');
 }

@@ -4,7 +4,7 @@ require_once '../auth.php';
 
 require_admin();
 
-// 🛡️ Handle user actions (POST with CSRF)
+// 🔍 Handle user actions (POST with CSRF)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['csrf_token'] ?? '')) {
         die("Invalid CSRF token");
@@ -16,10 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user_id !== $_SESSION['user_id']) { // Prevent self-deletion
             $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
             $stmt->execute([$user_id]);
-            
-            // 📝 Audit Log
             log_activity($_SESSION['user_id'], 'User Deleted', "Deleted user ID: $user_id");
-            
             header('Location: users.php?deleted=1');
             exit();
         }
@@ -28,39 +25,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Handle role change
     if (isset($_POST['toggle_role'])) {
         $user_id = intval($_POST['user_id']);
-        if ($user_id !== $_SESSION['user_id']) { // Prevent self-role change
+        if ($user_id !== $_SESSION['user_id']) {
             $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
             $stmt->execute([$user_id]);
             $current_role = $stmt->fetchColumn();
-            
             $new_role = ($current_role === 'admin') ? 'user' : 'admin';
             $stmt = $pdo->prepare("UPDATE users SET role = ? WHERE id = ?");
             $stmt->execute([$new_role, $user_id]);
-            
-            // 📝 Audit Log
-            log_activity($_SESSION['user_id'], 'Role Changed', "Changed user ID: $user_id role to: $new_role");
-            
+            log_activity($_SESSION['user_id'], 'Role Changed', "Changed user ID: $user_id to $new_role");
             header('Location: users.php?role_changed=1');
             exit();
         }
     }
 }
 
+// 🔍 Search & Filter Setup
+$search = trim($_GET['search'] ?? '');
+$role_filter = $_GET['role'] ?? '';
+
 // Pagination setup
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $limit = 10;
 $offset = ($page - 1) * $limit;
 
-$stmt_count = $pdo->query("SELECT COUNT(*) FROM users");
+// Build query
+$where_clauses = [];
+$params = [];
+
+if ($search) {
+    $where_clauses[] = "(name LIKE ? OR email LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+}
+
+if ($role_filter) {
+    $where_clauses[] = "role = ?";
+    $params[] = $role_filter;
+}
+
+$where_sql = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
+
+$stmt_count = $pdo->prepare("SELECT COUNT(*) FROM users $where_sql");
+$stmt_count->execute($params);
 $total_users = $stmt_count->fetchColumn();
 $total_pages = ceil($total_users / $limit);
 
 // Get paginated users
-$stmt = $pdo->prepare("SELECT * FROM users ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
-$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-$stmt->execute();
+$stmt = $pdo->prepare("SELECT * FROM users $where_sql ORDER BY created_at DESC LIMIT $limit OFFSET $offset");
+$stmt->execute($params);
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 
 <!DOCTYPE html>
@@ -86,17 +100,10 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Outfit', sans-serif;
             background-color: #f8f9fa;
-        }
-        .user-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .user-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -107,11 +114,40 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- Main Content -->
     <main class="container mx-auto px-4 py-8">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <h2 class="text-3xl font-bold text-gray-800">User Management</h2>
-            <a href="../register.php" class="btn-primary px-4 py-2 rounded-lg text-sm flex items-center whitespace-nowrap">
+            <div>
+                <h2 class="text-3xl font-bold text-gray-800">User Management</h2>
+                <p class="text-gray-500">Manage gym members and administrators</p>
+            </div>
+            <a href="../register.php" class="bg-highlight text-white px-6 py-3 rounded-xl font-bold flex items-center hover:opacity-90 transition shadow-lg">
                 <i class="fas fa-plus mr-2"></i> Add New User
             </a>
         </div>
+
+        <!-- 🔍 Search & Filter Bar -->
+        <div class="bg-white p-4 rounded-xl shadow mb-6">
+            <form method="GET" class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1 relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" 
+                           placeholder="Search by name or email..."
+                           class="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-highlight outline-none">
+                </div>
+                <div class="w-full md:w-48">
+                    <select name="role" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-highlight outline-none" onchange="this.form.submit()">
+                        <option value="">All Roles</option>
+                        <option value="admin" <?= $role_filter === 'admin' ? 'selected' : '' ?>>Admins</option>
+                        <option value="user" <?= $role_filter === 'user' ? 'selected' : '' ?>>Members</option>
+                    </select>
+                </div>
+                <button type="submit" class="bg-gray-800 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-900 transition">
+                    Filter
+                </button>
+                <?php if ($search || $role_filter): ?>
+                    <a href="users.php" class="text-gray-500 hover:text-highlight flex items-center justify-center">Clear</a>
+                <?php endif; ?>
+            </form>
+        </div>
+
         
         <?php if (isset($_GET['deleted'])): ?>
             <div class="mb-6 p-3 bg-green-100 text-green-700 rounded-lg">
@@ -133,42 +169,47 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member Since</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        <?php foreach ($users as $user): ?>
-                        <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">
-    <div class="flex items-center">
-        <div class="flex-shrink-0 h-10 w-10">
-            <img class="h-10 w-10 rounded-full object-cover"
-                 src="<?= htmlspecialchars(
-                     file_exists('../uploads/' . ($user['profile_picture'] ?? 'default.png'))
-                         ? '../uploads/' . $user['profile_picture']
-                         : '../uploads/default.png'
-                 ) ?>"
-                 alt="">
-        </div>
-        <div class="ml-4">
-            <div class="text-sm font-medium text-gray-900">
-                <?= htmlspecialchars($user['name']) ?>
-            </div>
-        </div>
-    </div>
-</td>
+                        <?php foreach ($users as $user): 
+                            // Check if active (payment in last 30 days)
+                            $stmt_pay = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE user_id = ? AND payment_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+                            $stmt_pay->execute([$user['id']]);
+                            $is_active = $stmt_pay->fetchColumn() > 0;
+                        ?>
+                        <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900"><?php echo htmlspecialchars($user['email']); ?></div>
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10">
+                                        <img class="h-10 w-10 rounded-full object-cover"
+                                             src="<?= htmlspecialchars(file_exists('../uploads/' . ($user['profile_picture'] ?? 'default.png')) ? '../uploads/' . $user['profile_picture'] : '../uploads/default.png') ?>" alt="">
+                                    </div>
+                                    <div class="ml-4">
+                                        <div class="text-sm font-bold text-gray-900"><?= htmlspecialchars($user['name']) ?></div>
+                                    </div>
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                    <?php echo $user['role'] === 'admin' ? 'bg-highlight text-white' : 'bg-green-100 text-green-800'; ?>">
-                                    <?php echo ucfirst($user['role']); ?>
+                                <div class="text-sm text-gray-500"><?= htmlspecialchars($user['email']) ?></div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 py-1 inline-flex text-[10px] leading-4 font-bold rounded-full uppercase tracking-widest <?= $user['role'] === 'admin' ? 'bg-highlight text-white' : 'bg-gray-100 text-gray-600' ?>">
+                                    <?= $user['role'] ?>
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <?php echo date('M j, Y', strtotime($user['created_at'])); ?>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <?php if ($is_active): ?>
+                                    <span class="px-2 py-1 text-[10px] font-bold text-green-600 bg-green-50 rounded-lg uppercase tracking-wider">Active</span>
+                                <?php else: ?>
+                                    <span class="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 rounded-lg uppercase tracking-wider">Expired</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                                <?= date('M j, Y', strtotime($user['created_at'])) ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <?php if ($user['id'] !== $_SESSION['user_id']): ?>

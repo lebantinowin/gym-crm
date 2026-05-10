@@ -29,6 +29,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <a href="reports.php" class="block px-4 py-3 rounded-lg transition flex items-center <?= $current_page == 'reports.php' ? 'bg-highlight text-white' : 'hover:bg-secondary hover:text-highlight' ?>">
             <i class="fas fa-chart-pie w-6"></i> <span>Reports</span>
         </a>
+        <a href="payments.php" class="block px-4 py-3 rounded-lg transition flex items-center <?= $current_page == 'payments.php' ? 'bg-highlight text-white' : 'hover:bg-secondary hover:text-highlight' ?>">
+            <i class="fas fa-credit-card w-6"></i> <span>Payments</span>
+        </a>
         <a href="messages.php" class="block px-4 py-3 rounded-lg transition flex items-center <?= $current_page == 'messages.php' ? 'bg-highlight text-white' : 'hover:bg-secondary hover:text-highlight' ?>">
             <i class="fas fa-envelope w-6"></i> <span>Messages</span>
         </a>
@@ -68,6 +71,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
             <a href="reports.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'reports.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
                 <i class="fas fa-chart-pie w-6"></i> Reports
+            </a>
+            <a href="payments.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'payments.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-credit-card w-6"></i> Payments
             </a>
             <a href="messages.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'messages.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
                 <i class="fas fa-envelope w-6"></i> Messages
