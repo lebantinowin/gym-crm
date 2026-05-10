@@ -58,11 +58,17 @@ $unread_messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle feedback status update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_feedback_status'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        die("Invalid token");
+    }
     $feedback_id = (int)$_POST['feedback_id'];
     $status = $_POST['status'];
     
     $stmt = $pdo->prepare("UPDATE feedback SET status = ?, admin_id = ? WHERE id = ?");
     $stmt->execute([$status, $_SESSION['user_id'], $feedback_id]);
+    
+    // 📝 Audit Log
+    log_activity($_SESSION['user_id'], 'Feedback Updated', "Updated feedback ID: $feedback_id to status: $status");
     
     $_SESSION['admin_success'] = "Feedback status updated successfully!";
     header('Location: index.php');
@@ -71,12 +77,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_feedback_statu
 
 // Handle message reply
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        die("Invalid token");
+    }
     $receiver_id = (int)$_POST['receiver_id'];
     $message = trim($_POST['message']);
     
     if (!empty($message)) {
         $stmt = $pdo->prepare("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
         $stmt->execute([$_SESSION['user_id'], $receiver_id, $message]);
+        
+        // 📝 Audit Log
+        log_activity($_SESSION['user_id'], 'Message Sent', "Replied to user ID: $receiver_id");
         
         $_SESSION['admin_success'] = "Message sent successfully!";
         header('Location: index.php');
@@ -410,6 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                 </button>
             </div>
             <form id="feedbackForm" method="POST">
+                <?= csrf_field() ?>
                 <input type="hidden" name="feedback_id" id="feedbackId">
                 <input type="hidden" name="update_feedback_status" value="1">
                 
@@ -444,6 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                 </button>
             </div>
             <form method="POST">
+                <?= csrf_field() ?>
                 <input type="hidden" name="send_message" value="1">
                 
                 <div class="mb-4">

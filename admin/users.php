@@ -4,31 +4,45 @@ require_once '../auth.php';
 
 require_admin();
 
-// Handle user deletion
-if (isset($_GET['delete'])) {
-    $user_id = intval($_GET['delete']);
-    if ($user_id !== $_SESSION['user_id']) { // Prevent self-deletion
-        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        header('Location: users.php?deleted=1');
-        exit();
+// 🛡️ Handle user actions (POST with CSRF)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        die("Invalid CSRF token");
     }
-}
 
-// Handle role change
-if (isset($_GET['toggle_role'])) {
-    $user_id = intval($_GET['toggle_role']);
-    if ($user_id !== $_SESSION['user_id']) { // Prevent self-role change
-        $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $current_role = $stmt->fetchColumn();
-        
-        $new_role = ($current_role === 'admin') ? 'user' : 'admin';
-        $stmt = $pdo->prepare("UPDATE users SET role = ? WHERE id = ?");
-        $stmt->execute([$new_role, $user_id]);
-        
-        header('Location: users.php?role_changed=1');
-        exit();
+    // Handle user deletion
+    if (isset($_POST['delete_user'])) {
+        $user_id = intval($_POST['user_id']);
+        if ($user_id !== $_SESSION['user_id']) { // Prevent self-deletion
+            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            
+            // 📝 Audit Log
+            log_activity($_SESSION['user_id'], 'User Deleted', "Deleted user ID: $user_id");
+            
+            header('Location: users.php?deleted=1');
+            exit();
+        }
+    }
+
+    // Handle role change
+    if (isset($_POST['toggle_role'])) {
+        $user_id = intval($_POST['user_id']);
+        if ($user_id !== $_SESSION['user_id']) { // Prevent self-role change
+            $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            $current_role = $stmt->fetchColumn();
+            
+            $new_role = ($current_role === 'admin') ? 'user' : 'admin';
+            $stmt = $pdo->prepare("UPDATE users SET role = ? WHERE id = ?");
+            $stmt->execute([$new_role, $user_id]);
+            
+            // 📝 Audit Log
+            log_activity($_SESSION['user_id'], 'Role Changed', "Changed user ID: $user_id role to: $new_role");
+            
+            header('Location: users.php?role_changed=1');
+            exit();
+        }
     }
 }
 
@@ -158,12 +172,20 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <?php if ($user['id'] !== $_SESSION['user_id']): ?>
-                                <a href="users.php?toggle_role=<?php echo $user['id']; ?>" class="text-blue-600 hover:text-blue-900 mr-3">
-                                    <?php echo $user['role'] === 'admin' ? 'Demote' : 'Promote'; ?>
-                                </a>
-                                <a href="users.php?delete=<?php echo $user['id']; ?>" class="text-red-600 hover:text-red-900" onclick="return confirm('Are you sure you want to delete this user?')">
-                                    Delete
-                                </a>
+                                <form method="POST" class="inline-block">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
+                                    <button type="submit" name="toggle_role" class="text-blue-600 hover:text-blue-900 mr-3 focus:outline-none">
+                                        <?= $user['role'] === 'admin' ? 'Demote' : 'Promote' ?>
+                                    </button>
+                                </form>
+                                <form method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to delete this user?')">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="user_id" value="<?= $user['id'] ?>">
+                                    <button type="submit" name="delete_user" class="text-red-600 hover:text-red-900 focus:outline-none">
+                                        Delete
+                                    </button>
+                                </form>
                                 <?php else: ?>
                                 <span class="text-gray-400">Current User</span>
                                 <?php endif; ?>

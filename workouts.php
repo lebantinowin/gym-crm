@@ -35,6 +35,10 @@ $workouts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 // Handle delete workout (AJAX)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && isset($_POST['delete_workout'])) {
     header('Content-Type: application/json');
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        echo json_encode(['success' => false, 'message' => 'Invalid session token']);
+        exit();
+    }
     
     try {
         $workout_id = (int)$_POST['workout_id'];
@@ -61,12 +65,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && isset($_PO
 // Handle log workout (AJAX) - FIXED EMOJI HANDLING
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && isset($_POST['log_workout'])) {
     header('Content-Type: application/json');
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        echo json_encode(['success' => false, 'message' => 'Invalid session token']);
+        exit();
+    }
     
     try {
-        $type = filter_var($_POST['workout_type'], FILTER_SANITIZE_STRING);
+        $allowed_types = ['Upper Body', 'Lower Body', 'Cardio', 'Full Body', 'Yoga', 'HIIT', 'Other'];
+        $type = trim($_POST['workout_type'] ?? '');
+        if (!in_array($type, $allowed_types)) {
+            $type = 'Other';
+        }
+        $type = htmlspecialchars($type);
         $duration = intval($_POST['duration']);
         $calories = !empty($_POST['calories']) ? intval($_POST['calories']) : 0;
-        $notes = !empty($_POST['workout_notes']) ? filter_var($_POST['workout_notes'], FILTER_SANITIZE_STRING) : '';
+        $notes = !empty($_POST['workout_notes']) ? htmlspecialchars(trim($_POST['workout_notes'])) : '';
         
         // FIXED: Get mood from POST data and validate it
         $mood = $_POST['workout_mood'] ?? '😊';
@@ -296,10 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && isset($_PO
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            <?php foreach ($workouts as $workout): 
-                                // Debug: Check what mood value we actually have
-                                error_log("Workout ID: " . $workout['id'] . " Mood: " . $workout['mood']);
-                            ?>
+                            <?php foreach ($workouts as $workout): ?>
                             <tr class="workout-card hover:bg-gray-50 transition-colors">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     <?= date('M j, Y', strtotime($workout['date'])) ?>

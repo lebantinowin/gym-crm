@@ -66,12 +66,18 @@ if ($conversation_id) {
 
 // Handle new message
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        die("Invalid token");
+    }
     $receiver_id = (int)$_POST['receiver_id'];
     $message = trim($_POST['message']);
     
     if (!empty($message)) {
         $stmt = $pdo->prepare("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
         $stmt->execute([$user_id, $receiver_id, $message]);
+        
+        // 📝 Audit Log
+        log_activity($user_id, 'Message Sent', "Sent message to user ID: $receiver_id");
         
         header('Location: messages.php?conversation=' . $receiver_id);
         exit();
@@ -242,6 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
                     <!-- Message Input -->
                     <div class="p-4 border-t">
                         <form method="POST" class="flex space-x-2">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="receiver_id" value="<?= $conversation_id ?>">
                             <textarea name="message" rows="2" class="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-highlight resize-none" 
                                       placeholder="Type your message..." required></textarea>

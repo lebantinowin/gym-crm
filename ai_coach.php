@@ -119,23 +119,30 @@ function call_qwen_api(string $api_key, string $user_message, array $context): s
 }
 
 function generate_coach_prompt(string $style, array $context): string {
+    global $pdo;
     $user_name = htmlspecialchars($_SESSION['user_name'] ?? 'ka-warzone');
     $goal = $context['goal'] ?? 'general fitness';
     $last_workout = $context['last_workout'] ? date('F j', strtotime($context['last_workout'])) : 'never';
     $streak = $context['streak_days'] ?? 0;
     $total = $context['total_sessions'] ?? 0;
 
+    // Default instructions if persona not found
+    $instructions = "Be a direct, practical gym-rat: mix science + street smarts.";
+    
+    // Fetch from database
+    $stmt = $pdo->prepare("SELECT instructions FROM ai_personas WHERE name = ? AND status = 'active' LIMIT 1");
+    $stmt->execute([$style]);
+    $db_instructions = $stmt->fetchColumn();
+    if ($db_instructions) {
+        $instructions = $db_instructions;
+    }
+
     $base = "You are Warzone AI Coach — a Filipino-rooted, science-backed fitness mentor. ";
     $base .= "Speak in natural Taglish when fitting (e.g., 'Sugod!', 'Tama yan!', 'Galing!'), but stay clear. ";
-    $base .= "User: {$user_name}. Goal: {$goal}. Last workout: {$last_workout}. Streak: {$streak}d. Sessions: {$total}. ";
+    $base .= "Context: User is {$user_name}. Goal: {$goal}. Last workout: {$last_workout}. Streak: {$streak}d. Sessions: {$total}. ";
+    $base .= "Personality: " . $instructions;
 
-    $styles = [
-        'gentle' => $base . "Be warm, patient, lolo/lola energy: encouraging, no shame, focus on small wins.",
-        'balanced' => $base . "Be direct, practical, gym-rat style: mix science + street smarts. Occasional tough love, but respect effort.",
-        'hardcore' => $base . "Be intense, drill-sergeant: zero excuses, high pride/challenge. Use 'TANGINA', 'SUGOD KA!', 'Wala kang excuse.' — but care deeply."
-    ];
-
-    return $styles[$style] ?? $styles['balanced'];
+    return $base;
 }
 
 function getUserContext(PDO $pdo, int $user_id): array {

@@ -3,11 +3,40 @@
 require_once 'auth.php';
 
 if (is_logged_in()) {
-    if ($_SESSION['user_role'] === 'admin') {
-        header('Location: admin/index.php');
+    header('Location: ' . ($_SESSION['user_role'] === 'admin' ? 'admin/index.php' : 'dashboard.php'));
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        $_SESSION['error'] = "Invalid session. Please refresh and try again.";
     } else {
-        header('Location: dashboard.php');
+        $name = htmlspecialchars(trim($_POST['name']));
+        $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
+        $password = $_POST['password'];
+        $goal = htmlspecialchars(trim($_POST['goal'] ?? ''));
+        $weight = !empty($_POST['weight']) ? floatval($_POST['weight']) : null;
+        $height = !empty($_POST['height']) ? floatval($_POST['height']) : null;
+        
+        $profile_picture = 'default.png';
+        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+            $profile_picture = upload_profile_picture($_FILES['profile_picture']);
+        }
+        
+        $result = register($name, $email, $password, $goal, $profile_picture, $weight, $height);
+        
+        if ($result === true) {
+            // Success - Auto Login
+            if (login($email, $password)) {
+                log_activity($_SESSION['user_id'], 'account_creation', "User registered and logged in.");
+                header('Location: dashboard.php?welcome=1');
+                exit();
+            }
+        } else {
+            $_SESSION['error'] = is_string($result) ? $result : "Registration failed. Please try again.";
+        }
     }
+    header("Location: register.php");
     exit();
 }
 ?>
@@ -92,13 +121,16 @@ if (is_logged_in()) {
                         <p class="text-gray-600">Start your fitness journey with AI coaching</p>
                     </div>
 
-                    <?php if (isset($error)): ?>
+                    <?php 
+                    $disp_error = $_SESSION['error'] ?? null;
+                    if ($disp_error): unset($_SESSION['error']); ?>
                         <div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                            <?= htmlspecialchars($error) ?>
+                            <?= htmlspecialchars($disp_error) ?>
                         </div>
                     <?php endif; ?>
 
                     <form method="POST" enctype="multipart/form-data" class="space-y-6">
+                        <?= csrf_field() ?>
                         <!-- Profile Picture -->
                         <div class="text-center">
                             <img id="profilePreview"
@@ -134,9 +166,17 @@ if (is_logged_in()) {
                             <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             <input type="password"
                                    name="password"
+                                   id="passwordInput"
                                    class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-highlight focus:border-transparent"
-                                   placeholder="Password (min 6 chars)"
+                                   placeholder="Password (min 8 chars, 1 uppercase, 1 symbol)"
                                    required>
+                        </div>
+                        <!-- Strength Meter -->
+                        <div class="mt-1 space-y-1">
+                            <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div id="strengthBar" class="h-full w-0 bg-red-500 transition-all duration-300"></div>
+                            </div>
+                            <p id="strengthText" class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Strength: None</p>
                         </div>
 
                         <div class="relative">
@@ -189,6 +229,43 @@ if (is_logged_in()) {
                     document.getElementById('profilePreview').src = event.target.result;
                 };
                 reader.readAsDataURL(file);
+            }
+        });
+
+        // Password Strength Logic
+        const passInput = document.getElementById('passwordInput');
+        const strengthBar = document.getElementById('strengthBar');
+        const strengthText = document.getElementById('strengthText');
+
+        passInput.addEventListener('input', () => {
+            const val = passInput.value;
+            let score = 0;
+            if (!val) score = 0;
+            else {
+                if (val.length >= 8) score += 20;
+                if (/[A-Z]/.test(val)) score += 20;
+                if (/[a-z]/.test(val)) score += 20;
+                if (/[0-9]/.test(val)) score += 20;
+                if (/[^A-Za-z0-9]/.test(val)) score += 20;
+            }
+
+            strengthBar.style.width = score + '%';
+            if (score <= 20) {
+                strengthBar.className = 'h-full w-0 bg-red-500 transition-all duration-300';
+                strengthText.textContent = 'Strength: Weak';
+                strengthText.className = 'text-[10px] text-red-500 font-medium uppercase tracking-wider';
+            } else if (score <= 60) {
+                strengthBar.className = 'h-full w-0 bg-yellow-500 transition-all duration-300';
+                strengthText.textContent = 'Strength: Moderate';
+                strengthText.className = 'text-[10px] text-yellow-500 font-medium uppercase tracking-wider';
+            } else if (score < 100) {
+                strengthBar.className = 'h-full w-0 bg-blue-500 transition-all duration-300';
+                strengthText.textContent = 'Strength: Good';
+                strengthText.className = 'text-[10px] text-blue-500 font-medium uppercase tracking-wider';
+            } else {
+                strengthBar.className = 'h-full w-0 bg-green-500 transition-all duration-300';
+                strengthText.textContent = 'Strength: Warzone Ready';
+                strengthText.className = 'text-[10px] text-green-500 font-medium uppercase tracking-wider';
             }
         });
     </script>

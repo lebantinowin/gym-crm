@@ -35,6 +35,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <a href="activity.php" class="block px-4 py-3 rounded-lg transition flex items-center <?= $current_page == 'activity.php' ? 'bg-highlight text-white' : 'hover:bg-secondary hover:text-highlight' ?>">
             <i class="fas fa-history w-6"></i> <span>Activity Log</span>
         </a>
+        <a href="ai_settings.php" class="block px-4 py-3 rounded-lg transition flex items-center <?= $current_page == 'ai_settings.php' ? 'bg-highlight text-white' : 'hover:bg-secondary hover:text-highlight' ?>">
+            <i class="fas fa-robot w-6"></i> <span>AI Settings</span>
+        </a>
     </nav>
     <div class="p-4 border-t border-gray-800">
         <a href="../logout.php" class="block px-4 py-3 text-gray-400 hover:text-highlight transition flex items-center">
@@ -71,6 +74,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
             <a href="activity.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'activity.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
                 <i class="fas fa-history w-6"></i> Activity Log
+            </a>
+            <a href="ai_settings.php" class="flex items-center px-4 py-3 rounded-lg <?= $current_page == 'ai_settings.php' ? 'bg-highlight text-white' : 'hover:bg-secondary text-gray-300 hover:text-highlight' ?>">
+                <i class="fas fa-robot w-6"></i> AI Settings
             </a>
             <a href="../logout.php" class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:text-highlight hover:bg-secondary">
                 <i class="fas fa-sign-out-alt w-6"></i> Logout

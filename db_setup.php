@@ -1,6 +1,15 @@
 <?php
 // db_setup.php - Fixed Database Schema for MariaDB
+// 🔐 SECURITY: Restrict access to localhost only
+$allowed_ips = ['127.0.0.1', '::1', 'localhost'];
+$client_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+if (php_sapi_name() !== 'cli' && !in_array($client_ip, $allowed_ips)) {
+    http_response_code(403);
+    die('<h3>403 Forbidden</h3><p>Database setup is only accessible from localhost or CLI.</p>');
+}
+
 require_once 'config.php';
+
 
 // Set timezone
 date_default_timezone_set('UTC');
@@ -49,6 +58,8 @@ CREATE TABLE IF NOT EXISTS mood_checkins (
     date DATE NOT NULL,
     mood VARCHAR(10) NOT NULL,
     notes TEXT,
+    starred TINYINT(1) DEFAULT 0,
+    archived TINYINT(1) DEFAULT 0,
     UNIQUE KEY unique_user_date (user_id, date),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -73,7 +84,87 @@ CREATE TABLE IF NOT EXISTS nutrition_logs (
     notes TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-";
+
+CREATE TABLE IF NOT EXISTS user_activity (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    activity_type VARCHAR(50) NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sender_id INT NOT NULL,
+    receiver_id INT NOT NULL,
+    message TEXT NOT NULL,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chats (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    message TEXT NOT NULL,
+    is_ai TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(100) NOT NULL,
+    message TEXT NOT NULL,
+    icon VARCHAR(50) DEFAULT 'fas fa-bell',
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    status ENUM('pending', 'reviewed', 'resolved') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ai_personas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    instructions TEXT NOT NULL,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    method VARCHAR(50) DEFAULT 'credit_card',
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+" ;
 
 try {
     // Set foreign key checks to 0 temporarily
@@ -166,6 +257,24 @@ try {
         echo "Sample AI responses inserted successfully!<br>";
     } else {
         echo "AI responses already exist in database.<br>";
+    }
+
+    // Check if ai_personas table is empty and insert default personas
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM ai_personas");
+    $stmt->execute();
+    $pCount = $stmt->fetchColumn();
+
+    if ($pCount == 0) {
+        $personas = [
+            ['name' => 'Drill Sergeant', 'instructions' => 'You are a tough, no-nonsense drill sergeant. You use aggressive motivation, call users "recruit" or "maggot", and have zero patience for excuses. Your goal is to push them to their physical limits through discipline.'],
+            ['name' => 'Supportive Coach', 'instructions' => 'You are a warm, encouraging, and empathetic coach. You focus on positive reinforcement, mental well-being, and celebrate even the smallest wins. You treat the user like a friend on a journey.'],
+            ['name' => 'Scientific Biohacker', 'instructions' => 'You are a data-driven fitness scientist. You use technical terms, cite biological facts (like muscle protein synthesis or ATP cycles), and focus on efficiency and optimization. Your tone is professional and analytical.']
+        ];
+        $stmt = $pdo->prepare("INSERT INTO ai_personas (name, instructions) VALUES (?, ?)");
+        foreach ($personas as $p) {
+            $stmt->execute([$p['name'], $p['instructions']]);
+        }
+        echo "Default AI personas inserted successfully!<br>";
     }
     
     // Check if admin user exists

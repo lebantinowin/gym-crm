@@ -8,6 +8,14 @@ require_admin();
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
 $end_date = $_GET['end_date'] ?? date('Y-m-t');
 
+// 🛡️ Date Validation
+if ($start_date > $end_date) {
+    $temp = $start_date;
+    $start_date = $end_date;
+    $end_date = $temp;
+    $error_msg = "Start date cannot be after end date. Dates have been swapped.";
+}
+
 // Get various reports with error handling
 $reports = [];
 
@@ -295,7 +303,7 @@ try {
                 <?php endif; ?>
             </div>
 
-            <!-- Workout Types Chart
+            <!-- Workout Types Chart -->
             <div class="chart-container">
                 <h3 class="text-xl font-bold text-gray-800 mb-4">Workout Distribution</h3>
                 <?php if (!empty($reports['workout_stats'])): ?>
@@ -307,11 +315,10 @@ try {
                     </div>
                 <?php endif; ?>
             </div>
-        </div> -->
+        </div>
 
-        <!-- Detailed Reports
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- Attendance Report
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Attendance Report -->
             <div class="chart-container">
                 <h3 class="text-xl font-bold text-gray-800 mb-4">Daily Attendance Rate</h3>
                 <?php if (!empty($reports['attendance'])): ?>
@@ -322,7 +329,7 @@ try {
                         <p>No attendance data available for selected period</p>
                     </div>
                 <?php endif; ?>
-            </div> -->
+            </div>
 
             <!-- Revenue Report -->
             <div class="chart-container">

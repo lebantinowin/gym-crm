@@ -4,6 +4,37 @@ session_start();
 require_once __DIR__ . '/config.php';
 
 define('UPLOAD_DIR', 'uploads/');
+define('SESSION_TIMEOUT', 1800); // 30 minutes idle timeout
+
+// ── Session timeout check ──────────────────────────────────────────────────
+if (isset($_SESSION['user_id'])) {
+    $last_active = $_SESSION['last_active'] ?? time();
+    if ((time() - $last_active) > SESSION_TIMEOUT) {
+        session_unset();
+        session_destroy();
+        // Fixed: Ensure correct redirect path from subdirectories
+        $base = (strpos($_SERVER['PHP_SELF'], '/admin/') !== false) ? '../' : '';
+        header('Location: ' . $base . 'login.php?timeout=1');
+        exit();
+    }
+    $_SESSION['last_active'] = time();
+}
+
+// ── CSRF Helpers ───────────────────────────────────────────────────────────
+function csrf_token(): string {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_field(): string {
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrf_token()) . '">';
+}
+
+function verify_csrf(string $token): bool {
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
 
 // Create upload dir & default.png
 if (!file_exists(UPLOAD_DIR)) {
@@ -13,10 +44,31 @@ if (!file_exists(UPLOAD_DIR)) {
         file_put_contents(UPLOAD_DIR . 'default.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
     }
 }
+// ✅ Password Complexity Check
+function validate_password($password) {
+    if (strlen($password) < 8) return "Password must be at least 8 characters long.";
+    if (!preg_match('/[A-Z]/', $password)) return "Password must contain at least one uppercase letter.";
+    if (!preg_match('/[a-z]/', $password)) return "Password must contain at least one lowercase letter.";
+    if (!preg_match('/[0-9]/', $password)) return "Password must contain at least one number.";
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) return "Password must contain at least one special character.";
+    return true;
+}
 
 // ✅ 1. ALL HELPER FUNCTIONS — defined FIRST (no early exit before these!)
 function login($email, $password) {
     global $pdo;
+
+    // Brute force protection
+    $now = time();
+    $attempts = $_SESSION['login_attempts'] ?? 0;
+    $last_attempt = $_SESSION['login_last_attempt'] ?? 0;
+
+    if ($attempts >= 5 && ($now - $last_attempt) < 30) {
+        $remaining = 30 - ($now - $last_attempt);
+        $_SESSION['error'] = "Too many failed attempts. Please wait $remaining seconds.";
+        return false;
+    }
+
     $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
@@ -33,8 +85,19 @@ function login($email, $password) {
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_profile_picture'] = $user['profile_picture'] ?? 'default.png';
         $_SESSION['user_coach_style'] = $user['coach_style'] ?? 'balanced';
+        $_SESSION['last_active'] = time();
+        
+        // Clear login attempts on success
+        unset($_SESSION['login_attempts'], $_SESSION['login_last_attempt']);
         return true;
     }
+
+    // Failure: Increment attempts
+    $_SESSION['login_attempts'] = $attempts + 1;
+    $_SESSION['login_last_attempt'] = $now;
+    
+    // Artificial delay
+    sleep(1);
     return false;
 }
 
@@ -65,7 +128,10 @@ function register($name, $email, $password, $goal, $profile_picture = null, $wei
     global $pdo;
     $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
     $stmt->execute([$email]);
-    if ($stmt->fetch()) return false;
+    if ($stmt->fetch()) return "Email already registered.";
+    
+    $val = validate_password($password);
+    if ($val !== true) return $val;
     
     $hashed = password_hash($password, PASSWORD_DEFAULT);
     $stmt = $pdo->prepare("INSERT INTO users (name, email, password, fitness_goal, profile_picture, weight, height, coach_style) VALUES (?, ?, ?, ?, ?, ?, ?, 'balanced')");
@@ -205,8 +271,21 @@ function add_notification($user_id, $type, $title, $message, $icon = 'fas fa-bel
 
 
 
+// ✅ Log system activity (Audit Log)
+function log_activity($user_id, $type, $details = null) {
+    global $pdo;
+    $stmt = $pdo->prepare("INSERT INTO user_activity (user_id, activity_type, details) VALUES (?, ?, ?)");
+    return $stmt->execute([$user_id, $type, $details]);
+}
+
 // ✅ 2. POST HANDLERS — go LAST (after all functions defined)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // 🛡️ Global CSRF Check
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        $_SESSION['error'] = "Invalid session token. Please try again.";
+        return;
+    }
+
     // Login
     if (isset($_POST['login'])) {
         $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
@@ -221,10 +300,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     // Register
     elseif (isset($_POST['register'])) {
-        $name = trim(filter_var($_POST['name'] ?? '', FILTER_SANITIZE_STRING));
+        $name = htmlspecialchars(trim($_POST['name'] ?? ''));
         $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
         $password = $_POST['password'] ?? '';
-        $goal = !empty($_POST['goal']) ? trim(filter_var($_POST['goal'], FILTER_SANITIZE_STRING)) : null;
+        $goal = !empty($_POST['goal']) ? htmlspecialchars(trim($_POST['goal'])) : null;
         $weight = !empty($_POST['weight']) ? floatval($_POST['weight']) : null;
         $height = !empty($_POST['height']) ? floatval($_POST['height']) : null;
         

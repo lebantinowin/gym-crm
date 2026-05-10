@@ -3,11 +3,28 @@
 require_once 'auth.php';
 
 if (is_logged_in()) {
-    if ($_SESSION['user_role'] === 'admin') {
-        header('Location: admin/index.php');
+    header('Location: ' . ($_SESSION['user_role'] === 'admin' ? 'admin/index.php' : 'dashboard.php'));
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        $_SESSION['error'] = "Invalid session. Please refresh and try again.";
     } else {
-        header('Location: dashboard.php');
+        $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
+        $password = $_POST['password'];
+        
+        if (login($email, $password)) {
+            log_activity($_SESSION['user_id'], 'login', "User logged in successfully.");
+            header('Location: ' . ($_SESSION['user_role'] === 'admin' ? 'admin/index.php' : 'dashboard.php'));
+            exit();
+        } else {
+            if (!isset($_SESSION['error'])) {
+                $_SESSION['error'] = "Invalid email or password.";
+            }
+        }
     }
+    header("Location: login.php");
     exit();
 }
 ?>
@@ -94,13 +111,16 @@ if (is_logged_in()) {
                         <p class="text-gray-600">Log in to your Warzone account</p>
                     </div>
 
-                    <?php if (isset($error)): ?>
+                    <?php 
+                    $disp_error = $_SESSION['error'] ?? null;
+                    if ($disp_error): unset($_SESSION['error']); ?>
                         <div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                            <?= htmlspecialchars($error) ?>
+                            <?= htmlspecialchars($disp_error) ?>
                         </div>
                     <?php endif; ?>
 
                     <form method="POST" class="space-y-6">
+                        <?= csrf_field() ?>
                         <div class="relative">
                             <i class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                             <input type="email"
@@ -119,11 +139,16 @@ if (is_logged_in()) {
                                    required>
                         </div>
 
-                        <button type="submit"
-                                name="login"
-                                class="w-full btn-primary py-3 rounded-lg font-semibold hover:bg-opacity-90 transition">
-                            <i class="fas fa-sign-in-alt mr-2"></i>Login to Warzone
-                        </button>
+                        <div class="flex items-center justify-between">
+                            <button type="submit"
+                                    name="login"
+                                    class="w-full btn-primary py-3 rounded-lg font-semibold hover:bg-opacity-90 transition">
+                                <i class="fas fa-sign-in-alt mr-2"></i>Login to Warzone
+                            </button>
+                        </div>
+                        <div class="text-center mt-2">
+                            <a href="forgot_password.php" class="text-sm text-gray-500 hover:text-highlight transition">Forgot password?</a>
+                        </div>
                     </form>
 
                     <div class="mt-6 pt-6 border-t border-gray-200 text-center">

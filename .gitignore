@@ -1,1 +1,22 @@
+# Environment / secrets
 .env
+.env.*
+
+# User uploads (large binary files, personal data)
+uploads/*
+!uploads/.gitkeep
+
+# Database dumps (can contain sensitive data)
+*.sql
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Debug/dev scripts
+check_php.php
+debug_env.php
+groq_test.php
+
+# PHP logs
+*.log

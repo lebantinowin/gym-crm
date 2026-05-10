@@ -15,26 +15,37 @@ require_login();
 
 $user_id = $_SESSION['user_id'];
 
+// Get available personas
+$stmt = $pdo->query("SELECT name FROM ai_personas WHERE status = 'active'");
+$available_personas = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
 // Get & set coach style
 $stmt = $pdo->prepare("SELECT coach_style FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
-$style = $stmt->fetchColumn() ?: 'balanced';
+$style = $stmt->fetchColumn() ?: ($available_personas[0] ?? 'Balanced');
 $_SESSION['user_coach_style'] = $style;
 
 // Update coach style
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_coach_style'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        die("Invalid token");
+    }
     $new_style = $_POST['coach_style'];
-    if (in_array($new_style, ['gentle', 'balanced', 'hardcore'])) {
+    if (in_array($new_style, $available_personas)) {
         $stmt = $pdo->prepare("UPDATE users SET coach_style = ? WHERE id = ?");
         $stmt->execute([$new_style, $user_id]);
         $_SESSION['user_coach_style'] = $new_style;
-        header("Location: " . $_SERVER['REQUEST_URI']);
+        header("Location: chat.php");
         exit();
     }
 }
 
 // Process new message
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
+    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
+        die("Invalid token");
+    }
+
     $message = trim($_POST['message']);
     if (!empty($message)) {
         // Save user message
@@ -48,6 +59,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['message'])) {
         // Save AI reply
         $stmt = $pdo->prepare("INSERT INTO chats (user_id, message, is_ai) VALUES (?, ?, 1)");
         $stmt->execute([$user_id, $ai_response]);
+
+        // 🛡️ PRUNING: Keep only the latest 100 messages to prevent database bloat
+        $stmt = $pdo->prepare("
+            DELETE FROM chats 
+            WHERE user_id = ? 
+            AND id NOT IN (
+                SELECT id FROM (
+                    SELECT id FROM chats 
+                    WHERE user_id = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT 100
+                ) x
+            )
+        ");
+        $stmt->execute([$user_id, $user_id]);
     }
     header("Location: " . $_SERVER['REQUEST_URI']);
     exit();
@@ -99,85 +125,8 @@ $messages = $stmt->fetchAll();
     </style>
 </head>
 <body class="bg-gray-50">
-<nav class="bg-primary text-white shadow-lg">
-        <div class="container mx-auto px-4 py-3">
-            <div class="flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <i class="fas fa-dumbbell text-highlight text-2xl"></i>
-                <a href="dashboard.php" class="text-xl font-bold text-white hover:text-highlight transition">
-                    Warzone Gym CRM
-                </a>
-            </div>
-                <div class="hidden md:flex items-center space-x-6">
-                    <a href="dashboard.php" class="hover:text-highlight transition font-semibold">Dashboard</a>
-                    <a href="workouts.php" class="hover:text-highlight transition">Workouts</a>
-                    <a href="attendance.php" class="hover:text-highlight transition">Attendance</a>
-                    <a href="journal.php" class="hover:text-highlight transition">Journal</a>
-                    <a href="chat.php" class="hover:text-highlight transition">Chat</a>
-                    <a href="profile.php" class="hover:text-highlight transition">Profile</a>
-                </div>
-                <div class="flex items-center space-x-3">
-                    <!-- ✅ Profile Picture (desktop only) -->
-                    <a href="profile.php" class="hidden md:flex items-center space-x-2 group" title="View Profile">
-                        <img src="<?= htmlspecialchars(file_exists('uploads/' . ($_SESSION['user_profile_picture'] ?? 'default.png')) 
-                                    ? 'uploads/' . $_SESSION['user_profile_picture'] 
-                                    : 'uploads/default.png') ?>" 
-                            alt="Profile" 
-                            class="rounded-full w-10 h-10 transition-transform duration-200 group-hover:scale-105 group-hover:ring-2 group-hover:ring-highlight">
-                        <a href="logout.php" 
-                        class="text-gray-400 hover:text-highlight transition ml-1 opacity-75 group-hover:opacity-100" 
-                        title="Logout">
-                            <i class="fas fa-sign-out-alt text-sm"></i>
-                        </a>
-                    </a>
-                    <!-- Mobile: hamburger -->
-                    <button id="userNavToggle" class="md:hidden text-white focus:outline-none p-1" aria-label="Open menu">
-                        <i class="fas fa-bars text-xl" id="userNavIcon"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </nav>
-    <!-- Mobile nav drawer -->
-    <div id="userNavDrawer" class="md:hidden hidden bg-primary text-white border-t border-gray-800 shadow-lg sticky top-0 z-40">
-        <div class="px-4 py-3 space-y-1">
-            <a href="dashboard.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
-                <i class="fas fa-home w-6"></i> Dashboard
-            </a>
-            <a href="workouts.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
-                <i class="fas fa-dumbbell w-6"></i> Workouts
-            </a>
-            <a href="attendance.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
-                <i class="fas fa-calendar-check w-6"></i> Attendance
-            </a>
-            <a href="journal.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
-                <i class="fas fa-book w-6"></i> Journal
-            </a>
-            <a href="chat.php" class="flex items-center px-4 py-3 rounded-lg bg-highlight text-white">
-                <i class="fas fa-robot w-6"></i> AI Coach
-            </a>
-            <a href="profile.php" class="flex items-center px-4 py-3 rounded-lg hover:bg-secondary text-gray-300 hover:text-highlight">
-                <i class="fas fa-user w-6"></i> Profile
-            </a>
-            <a href="logout.php" class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:text-highlight hover:bg-secondary">
-                <i class="fas fa-sign-out-alt w-6"></i> Logout
-            </a>
-        </div>
-    </div>
-    <script>
-    (function() {
-        const toggle = document.getElementById('userNavToggle');
-        const drawer = document.getElementById('userNavDrawer');
-        const icon   = document.getElementById('userNavIcon');
-        if (toggle && drawer) {
-            toggle.addEventListener('click', function() {
-                const isOpen = !drawer.classList.contains('hidden');
-                drawer.classList.toggle('hidden', isOpen);
-                icon.className = isOpen ? 'fas fa-bars text-xl' : 'fas fa-times text-xl';
-            });
-        }
-    })();
-    </script>
+    <!-- Navigation Bar -->
+    <?php include 'includes/user_nav.php'; ?>
 
     <main class="container mx-auto px-4 py-8">
         <div class="max-w-4xl mx-auto">
@@ -200,16 +149,15 @@ $messages = $stmt->fetchAll();
         <p class="text-sm text-gray-600">How should Warzone talk to you?</p>
     </div>
     <form method="POST" class="flex flex-wrap gap-2">
+        <?= csrf_field() ?>
         <input type="hidden" name="set_coach_style" value="1">
-        <?php foreach (['gentle'   => '🌿 Gentle',
-                        'balanced' => '⚖️ Balanced',
-                        'hardcore' => '💀 Hardcore'] as $val => $label): ?>
-            <button type="submit" name="coach_style" value="<?= $val ?>"
-                    class="px-3 py-1 text-sm rounded-full whitespace-nowrap
-                           <?= $_SESSION['user_coach_style'] === $val
-                               ? 'bg-highlight text-white'
-                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300' ?>">
-                <?= htmlspecialchars($label) ?>
+        <?php foreach ($available_personas as $p_name): ?>
+            <button type="submit" name="coach_style" value="<?= $p_name ?>"
+                    class="px-4 py-2 text-sm rounded-xl font-bold transition-all
+                           <?= $_SESSION['user_coach_style'] === $p_name
+                               ? 'bg-highlight text-white shadow-lg shadow-highlight/20 scale-105'
+                               : 'bg-gray-100 text-gray-500 hover:bg-gray-200' ?>">
+                <?= htmlspecialchars($p_name) ?>
             </button>
         <?php endforeach; ?>
     </form>
@@ -245,8 +193,8 @@ $messages = $stmt->fetchAll();
 
                 <!-- 2.  Message bar – keeps everything on one line -->
 <div class="p-4 border-t bg-white">
-    <form method="POST" class="flex items-center">
-        <input type="text" name="message" placeholder="Ask Warzone anything..."
+    <form id="chatForm" class="flex items-center">
+        <input type="text" id="messageInput" name="message" placeholder="Ask Warzone anything..."
                class="flex-1 min-w-0 border rounded-l-lg px-4 py-2
                       focus:outline-none focus:ring-2 focus:ring-highlight"
                required>
@@ -283,12 +231,84 @@ $messages = $stmt->fetchAll();
     </main>
 
     <script>
+        const chatContainer = document.getElementById('chatContainer');
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+        const csrfToken = '<?= $_SESSION['csrf_token'] ?>';
+        let lastMessageId = <?= !empty($messages) ? end($messages)['id'] : 0 ?>;
+
         function scrollToBottom() {
-            const c = document.getElementById('chatContainer');
-            if (c) c.scrollTop = c.scrollHeight;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
+
+        function appendMessage(msg) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `message-wrapper ${msg.is_ai ? 'ai-wrapper' : ''}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `${msg.is_ai ? 'ai-bubble' : 'user-bubble'} chat-bubble`;
+            bubble.innerHTML = `<p>${escapeHtml(msg.message)}</p>`;
+            
+            const time = document.createElement('div');
+            time.className = 'timestamp';
+            time.textContent = msg.time;
+            
+            wrapper.appendChild(bubble);
+            wrapper.appendChild(time);
+            chatContainer.appendChild(wrapper);
+            scrollToBottom();
+            
+            if (msg.id > lastMessageId) lastMessageId = msg.id;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            messageInput.value = '';
+            messageInput.disabled = true;
+
+            try {
+                const response = await fetch('chat_api.php?action=send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, csrf_token: csrfToken })
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    appendMessage(data.user_message);
+                    setTimeout(() => appendMessage(data.ai_message), 500);
+                }
+            } catch (err) {
+                console.error('Failed to send message:', err);
+            } finally {
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+        });
+
+        // Polling for new messages (every 3 seconds)
+        async function pollMessages() {
+            try {
+                const response = await fetch(`chat_api.php?action=poll&last_id=${lastMessageId}`);
+                const data = await response.json();
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => appendMessage(msg));
+                }
+            } catch (err) {
+                console.error('Polling error:', err);
+            }
+        }
+
+        setInterval(pollMessages, 3000);
         document.addEventListener('DOMContentLoaded', scrollToBottom);
-        window.addEventListener('load', scrollToBottom);
     </script>
     <?php include 'modal_logout.php'; ?>
 </body>
