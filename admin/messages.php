@@ -1,88 +1,7 @@
 <?php
-// admin/messages.php - Messaging System
+// admin/messages.php - API-First Messaging System
 require_once '../auth.php';
-
 require_admin();
-
-$user_id = $_SESSION['user_id'];
-
-// Pagination setup for conversations
-$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-$limit = 10;
-$offset = ($page - 1) * $limit;
-
-$stmt_count = $pdo->prepare("
-    SELECT COUNT(DISTINCT u.id)
-    FROM messages m
-    JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
-    WHERE (m.sender_id = ? OR m.receiver_id = ?) AND u.id != ?
-");
-$stmt_count->execute([$user_id, $user_id, $user_id]);
-$total_conversations = $stmt_count->fetchColumn();
-$total_pages = ceil($total_conversations / $limit);
-
-// Get conversations
-$stmt = $pdo->prepare("
-    SELECT 
-        u.id, u.name, u.profile_picture,
-        MAX(m.created_at) as last_message_date,
-        SUM(CASE WHEN m.receiver_id = ? AND m.is_read = 0 THEN 1 ELSE 0 END) as unread_count
-    FROM messages m
-    JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
-    WHERE (m.sender_id = ? OR m.receiver_id = ?) AND u.id != ?
-    GROUP BY u.id, u.name, u.profile_picture
-    ORDER BY last_message_date DESC
-    LIMIT ? OFFSET ?
-");
-$stmt->bindValue(1, $user_id, PDO::PARAM_INT);
-$stmt->bindValue(2, $user_id, PDO::PARAM_INT);
-$stmt->bindValue(3, $user_id, PDO::PARAM_INT);
-$stmt->bindValue(4, $user_id, PDO::PARAM_INT);
-$stmt->bindValue(5, $limit, PDO::PARAM_INT);
-$stmt->bindValue(6, $offset, PDO::PARAM_INT);
-$stmt->execute();
-$conversations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Get messages for a specific conversation
-$conversation_id = $_GET['conversation'] ?? null;
-$messages = [];
-
-if ($conversation_id) {
-    // Mark messages as read
-    $stmt = $pdo->prepare("UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ?");
-    $stmt->execute([$conversation_id, $user_id]);
-    
-    // Get messages
-    $stmt = $pdo->prepare("
-        SELECT m.*, u.name as sender_name, u.profile_picture
-        FROM messages m
-        JOIN users u ON m.sender_id = u.id
-        WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
-        ORDER BY m.created_at ASC
-    ");
-    $stmt->execute([$conversation_id, $user_id, $user_id, $conversation_id]);
-    $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-// Handle new message
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
-    if (!verify_csrf($_POST['csrf_token'] ?? '')) {
-        die("Invalid token");
-    }
-    $receiver_id = (int)$_POST['receiver_id'];
-    $message = trim($_POST['message']);
-    
-    if (!empty($message)) {
-        $stmt = $pdo->prepare("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
-        $stmt->execute([$user_id, $receiver_id, $message]);
-        
-        // 📝 Audit Log
-        log_activity($user_id, 'Message Sent', "Sent message to user ID: $receiver_id");
-        
-        header('Location: messages.php?conversation=' . $receiver_id);
-        exit();
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -90,193 +9,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warzone Gym CRM - Messages</title>
+    <title>Warzone Admin - Communications</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#1a1a2e',
-                        secondary: '#16213e',
-                        accent: '#0f3460',
-                        highlight: '#e94560'
-                    }
-                }
-            }
-        }
+        tailwind.config = { theme: { extend: { colors: { primary: '#1a1a2e', secondary: '#16213e', accent: '#0f3460', highlight: '#e94560' } } } }
     </script>
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-    
-    /* ---------- core palette from chat.php ---------- */
-    :root{
-        --primary:#1a1a2e;
-        --secondary:#16213e;
-        --accent:#0f3460;
-        --highlight:#e94560;
-    }
-
-    /* ---------- global ---------- */
-    body{ background:#f8f9fa; font-family:'Outfit',sans-serif; }
-
-    /* ---------- layout helpers ---------- */
-    .h-screen-content{ height:calc(100vh - 120px); }   /* nav + footer offset */
-    .message-bubble{
-        max-width:65%;
-        word-wrap:break-word;
-        padding:.8rem 1.1rem;
-        line-height:1.45;
-        border-radius:1.1rem;
-        box-shadow:0 2px 4px rgba(0,0,0,.06);
-    }
-    .message-sent{
-        background:linear-gradient(45deg,var(--highlight),var(--accent));
-        color:#fff;
-        border-bottom-right-radius:.4rem;
-    }
-    .message-received{
-        background:#f1f5f9;
-        color:#1f2937;
-        border-bottom-left-radius:.4rem;
-        border:1px solid #e2e8f0;
-    }
-    .timestamp{ font-size:.7rem; color:#94a3b8; margin-top:.25rem; }
-
-    /* ---------- conversation list ---------- */
-    .conv-item{ transition:background .2s; }
-    .conv-item:hover{ background:#f8fafc; }
-    .conv-active{ background:#eff6ff!important; border-right:3px solid var(--highlight); }
-
-    /* ---------- message thread ---------- */
-    #messageContainer{ scroll-behavior:smooth; }
-    /* thin scrollbar */
-    #messageContainer::-webkit-scrollbar{ width:6px; }
-    #messageContainer::-webkit-scrollbar-thumb{ background:#cbd5e1; border-radius:3px; }
-
-    /* ---------- input area ---------- */
-    textarea:focus{ outline:none; box-shadow:0 0 0 2px var(--highlight); }
-</style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Outfit', sans-serif; background-color: #f8f9fa; }
+        .conversation-item { transition: all 0.2s; border-radius: 1rem; margin-bottom: 0.5rem; }
+        .conversation-item:hover { background: #f8fafc; }
+        .conversation-active { background: #eff6ff !important; border-left: 4px solid #e94560; }
+        .message-bubble { max-width: 75%; border-radius: 1.5rem; }
+        .sent { background: #1a1a2e; color: white; border-bottom-right-radius: 0.5rem; }
+        .received { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 0.5rem; }
+    </style>
 </head>
 <body class="bg-gray-50 md:flex min-h-screen">
     <?php include 'sidebar.php'; ?>
-    <div class="flex-1 md:ml-64 w-full flex flex-col">
-
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-800">Messages</h1>
-                <p class="text-gray-600">Communicate with gym members</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:h-[600px]">
-            <!-- Conversations List -->
-            <div class="lg:col-span-1 bg-white rounded-xl shadow overflow-hidden">
-                <div class="p-4 border-b">
-                    <h3 class="font-bold text-gray-800">Conversations</h3>
-                </div>
-                <div class="overflow-y-auto max-h-60 lg:max-h-[480px]">
-                    <?php foreach ($conversations as $conversation): ?>
-                    <a href="messages.php?conversation=<?= $conversation['id'] ?>" 
-                       class="flex items-center p-4 hover:bg-gray-50 transition-colors border-b <?= $conversation['id'] == $conversation_id ? 'bg-blue-50' : '' ?>">
-                        <img src="<?= htmlspecialchars(file_exists('../uploads/' . $conversation['profile_picture']) 
-                                    ? '../uploads/' . $conversation['profile_picture'] 
-                                    : '../uploads/default.png') ?>" 
-                             alt="User" class="w-12 h-12 rounded-full mr-3">
-                        <div class="flex-1 min-w-0">
-                            <h4 class="font-medium text-gray-800 truncate"><?= htmlspecialchars($conversation['name']) ?></h4>
-                            <p class="text-sm text-gray-500 truncate">
-                                <?php if ($conversation['unread_count'] > 0): ?>
-                                    <span class="text-highlight font-medium"><?= $conversation['unread_count'] ?> unread</span>
-                                <?php else: ?>
-                                    No unread messages
-                                <?php endif; ?>
-                            </p>
-                        </div>
-                    </a>
-                    <?php endforeach; ?>
-                </div>
-                
-                <?php if ($total_pages > 1): ?>
-                <div class="p-3 border-t flex justify-center space-x-2 text-sm">
-                    <?php if ($page > 1): ?>
-                    <a href="?page=<?= $page - 1 ?>" class="px-2 py-1 border rounded hover:bg-gray-50">Prev</a>
-                    <?php endif; ?>
-                    <span class="px-2 py-1"><?= $page ?> / <?= $total_pages ?></span>
-                    <?php if ($page < $total_pages): ?>
-                    <a href="?page=<?= $page + 1 ?>" class="px-2 py-1 border rounded hover:bg-gray-50">Next</a>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
+    
+    <div class="flex-1 md:ml-64 w-full flex flex-col h-screen">
+        <main class="flex-grow flex flex-col h-full overflow-hidden">
+            <div class="p-8 border-b bg-white">
+                <h1 class="text-3xl font-black text-gray-800 tracking-tighter">Communications Center</h1>
+                <p class="text-gray-500 font-medium text-sm">Direct engagement with the Warzone community.</p>
             </div>
 
-            <!-- Message Thread -->
-            <div class="lg:col-span-3 bg-white rounded-xl shadow flex flex-col">
-                <?php if ($conversation_id): ?>
-                    <?php 
-                    // Get conversation partner info
-                    $stmt = $pdo->prepare("SELECT name, profile_picture FROM users WHERE id = ?");
-                    $stmt->execute([$conversation_id]);
-                    $partner = $stmt->fetch(PDO::FETCH_ASSOC);
-                    ?>
-                    
-                    <!-- Chat Header -->
-                    <div class="p-4 border-b flex items-center">
-                        <img src="<?= htmlspecialchars(file_exists('../uploads/' . $partner['profile_picture']) 
-                                    ? '../uploads/' . $partner['profile_picture'] 
-                                    : '../uploads/default.png') ?>" 
-                             alt="User" class="w-10 h-10 rounded-full mr-3">
-                        <h3 class="font-bold text-gray-800"><?= htmlspecialchars($partner['name']) ?></h3>
+            <div class="flex-grow flex overflow-hidden">
+                <!-- Left: Conversations -->
+                <div class="w-1/3 border-r bg-white overflow-y-auto p-4" id="conversationList">
+                    <div class="space-y-4">
+                        <div class="h-16 bg-gray-50 rounded-2xl animate-pulse"></div>
+                        <div class="h-16 bg-gray-50 rounded-2xl animate-pulse"></div>
                     </div>
+                </div>
 
-                    <!-- Messages -->
-                    <div class="flex-1 overflow-y-auto p-4 space-y-4" id="messageContainer">
-                        <?php foreach ($messages as $message): ?>
-                        <div class="flex <?= $message['sender_id'] == $user_id ? 'justify-end' : 'justify-start' ?>">
-                            <div class="message-bubble px-4 py-2 rounded-lg 
-                                        <?= $message['sender_id'] == $user_id ? 'message-sent' : 'message-received' ?>">
-                                <p><?= htmlspecialchars($message['message']) ?></p>
-                                <p class="text-xs mt-1 opacity-75"><?= date('g:i A', strtotime($message['created_at'])) ?></p>
-                            </div>
+                <!-- Right: Active Chat -->
+                <div class="flex-1 flex flex-col bg-gray-50" id="chatArea">
+                    <div class="flex-1 flex items-center justify-center text-gray-400">
+                        <div class="text-center">
+                            <i class="fas fa-comment-dots text-6xl mb-4 opacity-20"></i>
+                            <p class="font-bold uppercase tracking-widest text-xs">Select a member to start chat</p>
                         </div>
-                        <?php endforeach; ?>
                     </div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-                    <!-- Message Input -->
-                    <div class="p-4 border-t">
-                        <form method="POST" class="flex space-x-2">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="receiver_id" value="<?= $conversation_id ?>">
-                            <textarea name="message" rows="2" class="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-highlight resize-none" 
-                                      placeholder="Type your message..." required></textarea>
-                            <button type="submit" name="send_message" class="bg-highlight text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition">
-                                <i class="fas fa-paper-plane"></i>
+    <script>
+        let currentContactId = null;
+
+        async function fetchConversations() {
+            try {
+                const response = await fetch('../api/messages.php');
+                const res = await response.json();
+                if (res.status === 'success') renderConversations(res.data.conversations);
+            } catch (err) { console.error(err); }
+        }
+
+        function renderConversations(convs) {
+            const list = document.getElementById('conversationList');
+            if (convs.length === 0) {
+                list.innerHTML = `<p class="text-center py-10 text-xs font-bold text-gray-400">No conversations yet.</p>`;
+                return;
+            }
+
+            list.innerHTML = convs.map(c => `
+                <div onclick="selectConversation(${c.contact_id})" class="conversation-item p-4 flex items-center cursor-pointer ${currentContactId === c.contact_id ? 'conversation-active' : ''}">
+                    <img src="../uploads/${c.profile_picture || 'default.png'}" class="w-12 h-12 rounded-2xl object-cover mr-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h4 class="font-black text-gray-800 truncate text-sm">${c.contact_name}</h4>
+                            ${c.unread_count > 0 ? `<span class="bg-highlight text-white text-[9px] font-black px-2 py-0.5 rounded-full">${c.unread_count}</span>` : ''}
+                        </div>
+                        <p class="text-xs text-gray-400 truncate mt-1">${c.last_message || 'No messages yet'}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function selectConversation(id) {
+            currentContactId = id;
+            fetchConversations(); // refresh list to update active state
+            
+            const chatArea = document.getElementById('chatArea');
+            chatArea.innerHTML = `
+                <div class="flex-1 flex flex-col h-full overflow-hidden">
+                    <div id="messagesFeed" class="flex-1 overflow-y-auto p-8 space-y-6">
+                        <div class="text-center py-20"><i class="fas fa-spinner fa-spin text-highlight text-3xl"></i></div>
+                    </div>
+                    <div class="p-8 border-t bg-white">
+                        <form id="messageForm" class="flex gap-4">
+                            <textarea id="messageInput" class="flex-1 bg-gray-50 border-gray-100 border rounded-2xl px-6 py-4 focus:ring-2 focus:ring-highlight outline-none resize-none font-medium" rows="2" placeholder="Write a secure response..."></textarea>
+                            <button type="submit" class="bg-primary text-white w-20 rounded-2xl shadow-xl hover:opacity-90 transition flex items-center justify-center">
+                                <i class="fas fa-paper-plane text-xl"></i>
                             </button>
                         </form>
                     </div>
-                <?php else: ?>
-                    <div class="flex-1 flex items-center justify-center text-gray-500">
-                        <div class="text-center">
-                            <i class="fas fa-comments text-5xl mb-4 text-gray-300"></i>
-                            <h3 class="text-xl font-bold text-gray-800 mb-2">Select a conversation</h3>
-                            <p>Choose a conversation from the list to start messaging</p>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </main>
+                </div>
+            `;
 
-    <footer class="bg-primary text-white py-8 mt-12">
-        <div class="container mx-auto px-4">
-            <div class="text-center text-gray-400 text-sm">
-                <p>© 2026 Warzone Gym CRM. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
-    </div>
+            fetchMessages(id);
+
+            document.getElementById('messageForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const msg = document.getElementById('messageInput').value.trim();
+                if (!msg) return;
+
+                const formData = new FormData();
+                formData.append('receiver_id', id);
+                formData.append('message', msg);
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+
+                try {
+                    const res = await fetch('../api/messages.php', { method: 'POST', body: formData });
+                    if ((await res.json()).status === 'success') {
+                        document.getElementById('messageInput').value = '';
+                        fetchMessages(id);
+                    }
+                } catch (err) { console.error(err); }
+            });
+        }
+
+        async function fetchMessages(id) {
+            try {
+                const response = await fetch(`../api/messages.php?contact_id=${id}`);
+                const res = await response.json();
+                if (res.status === 'success') {
+                    const feed = document.getElementById('messagesFeed');
+                    feed.innerHTML = res.data.messages.map(m => `
+                        <div class="flex ${m.sender_id == <?= (int)$_SESSION['user_id'] ?> ? 'justify-end' : 'justify-start'}">
+                            <div class="message-bubble px-6 py-4 ${m.sender_id == <?= (int)$_SESSION['user_id'] ?> ? 'sent shadow-lg shadow-primary/10' : 'received'}">
+                                <p class="text-sm font-medium leading-relaxed">${m.message}</p>
+                                <p class="text-[9px] mt-2 font-black opacity-40 uppercase tracking-widest">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                    feed.scrollTop = feed.scrollHeight;
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchConversations);
+    </script>
 </body>
 </html>
